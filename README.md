@@ -94,7 +94,8 @@ Three credentials, none shared with the wrong party:
 Revoking access:
 
 - **Aura**: `MirrorLink.unpair()` in the TV app clears its token (the bridge then gets 401s).
-- **Bridge**: `POST /api/session/logout` from that device, or delete the entry in `/data/sessions.json`.
+- **Bridge**: the PWA's **Sign out** button (top bar), `POST /api/session/logout` from that device, or
+  delete the entry in `/data/sessions.json`.
 
 Caveats: the bridge speaks plain HTTP on the LAN, so the cookie has no `Secure` flag and travels
 unencrypted — put TLS in front if you expose it beyond a trusted network. Aura's mirror link is likewise

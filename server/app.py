@@ -27,12 +27,14 @@ from typing import Literal, Optional
 import pychromecast
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 DEFAULT_MEDIA_RECEIVER = "CC1AD845"
 DISCOVERY_TTL = 60.0
+# Keep this in step with VERSION in web/app.js — both end up in Jellyfin's device list.
+BRIDGE_VERSION = "0.2.0"
 
 # Fallback discovery: when the container cannot see mDNS multicast (bridged
 # networking), reach these hosts directly over their Cast setup endpoint.
@@ -366,7 +368,7 @@ def _jellyfin_me(server: str, token: str) -> dict:
     req = urllib.request.Request(
         f"{server}/Users/Me",
         headers={"Authorization": f'MediaBrowser Client="Aura Remote", Device="Bridge", '
-                                 f'DeviceId="bridge", Version="0.3.0", Token="{token}"'},
+                                 f'DeviceId="bridge", Version="{BRIDGE_VERSION}", Token="{token}"'},
     )
     with urllib.request.urlopen(req, timeout=6) as resp:
         return json.load(resp)
@@ -506,8 +508,8 @@ def _to_jpeg(png: bytes) -> bytes:
 
 @app.get("/api/screen")
 def screen():
-    _require_adb()
     """One frame of the TV, for the mirror view. adb screencap caps this at ~1 fps."""
+    _require_adb()
     ok, message = _adb_connect()
     if not ok:
         raise HTTPException(503, message)

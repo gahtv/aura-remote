@@ -1,9 +1,10 @@
 /* Aura Remote — phone-first control for Aura on the TV.
  *
- * Three paths:
- *   aura — Jellyfin remote-control protocol (Aura already speaks it)
- *   cast — the homelab bridge loads a direct-play URL onto a Cast target
- *   tv   — ADB: launch Aura, D-pad input, screen mirroring
+ * Two paths:
+ *   aura — Jellyfin remote-control protocol + Aura's mirror link (primary)
+ *   cast — the homelab bridge loads a direct-play URL onto a Cast target (fallback)
+ * The ADB-bridge endpoints the server still exposes (launch, D-pad, screen) are
+ * not driven from this UI; launching Aura is the only ADB call still used.
  */
 
 const CLIENT = 'Aura Remote';
@@ -175,10 +176,17 @@ async function login() {
   }
 }
 
-function logout() {
-  store.del('auth');
+async function logout() {
   clearInterval(state.timer);
   clearInterval(state.mirrorTimer);
+  // Drop the server-side session too: the cookie is HttpOnly and lives 30 days,
+  // so clearing local storage alone leaves a live bridge session behind.
+  try {
+    await fetch(`${state.bridge}/api/session/logout`, { method: 'POST' });
+  } catch { /* bridge unreachable — the cookie expires on its own */ }
+  state.bridgeReady = false;
+  state.bridgeError = '';
+  store.del('auth');
   $('main').classList.add('hidden');
   $('login').classList.remove('hidden');
 }
@@ -1045,6 +1053,14 @@ $('mirrorBtn').addEventListener('click', () => {
   }
 });
 renderMirrorBtn();
+
+$('signOutBtn').addEventListener('click', () => {
+  if (!confirm('Sign out of this remote?')) return;
+  state.mirrorOn = false;
+  store.set('mirrorOn', false);
+  renderMirrorBtn();
+  logout();
+});
 
 document.addEventListener('click', e => {
   const close = e.target.closest('[data-close]');
