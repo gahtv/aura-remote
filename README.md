@@ -119,7 +119,7 @@ plain HTTP, protected only by the token.
 | POST | `/api/load`, `/api/transport`, `/api/seek` | Cast playback. |
 | GET | `/api/status?device=` | Now playing on a Cast target. |
 | POST | `/api/launch` | Start Aura (requires `ADB_SERIAL`). |
-| GET | `/api/tvstate`, `/api/screen` | Accessibility-tree dump / JPEG frame fallback. |
+| GET | `/api/tvstate`, `/api/screen`, `/api/key`, `/api/device` | **Deprecated.** Accessibility-tree dump, JPEG frame, key injection and foreground window — the ADB mirroring path, replaced by `/api/aura/*`. Kept working for existing scripts; `/api/launch` is the only ADB call the UI still makes. |
 
 ## Development
 

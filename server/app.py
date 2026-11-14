@@ -438,7 +438,13 @@ def health():
     return {"ok": True, "devices": len(_cache)}
 
 
-# ---------------- Android TV input + view mirroring ----------------
+# ---------------- Android TV surface (ADB) ----------------
+# Everything below is the original ADB bridge: D-pad injection, screenshots, the
+# accessibility tree and the launch call. The UI stopped using the mirroring half
+# when Aura gained its own semantic mirror link (in-app input, published screen
+# state); screenshot/tree/keyevent remain only for anything still pointed at them
+# and are DEPRECATED — they are the part that needs USB debugging. /api/launch is
+# NOT deprecated: starting Aura is the one thing ADB is still good for.
 
 KEY_CODES = {
     "up": "KEYCODE_DPAD_UP",
@@ -472,7 +478,7 @@ def aura_input(req: "KeyRequest"):
     return {"ok": True}
 
 
-@app.post("/api/key")
+@app.post("/api/key", deprecated=True)
 def key(req: KeyRequest):
     ok, message = _adb_connect()
     if not ok:
@@ -506,7 +512,7 @@ def _to_jpeg(png: bytes) -> bytes:
         return out.getvalue()
 
 
-@app.get("/api/screen")
+@app.get("/api/screen", deprecated=True)
 def screen():
     """One frame of the TV, for the mirror view. adb screencap caps this at ~1 fps."""
     _require_adb()
@@ -590,7 +596,7 @@ def launch():
     return {"ok": True, "detail": out[:200]}
 
 
-@app.get("/api/device")
+@app.get("/api/device", deprecated=True)
 def device_state():
     _require_adb()
     """What is in the foreground, so the PWA can avoid a pointless relaunch."""
@@ -614,7 +620,7 @@ def device_state():
     }
 
 
-@app.get("/api/tvstate")
+@app.get("/api/tvstate", deprecated=True)
 def tvstate():
     _require_adb()
     """An HTML-renderable model of what is on the TV right now.
