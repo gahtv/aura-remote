@@ -17,7 +17,7 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 | **Queue** | The endpoint's live queue and current index; tap a row to jump. |
 | **Transport** | Play/pause/next/previous/seek, repeat and shuffle — semantic commands, not key presses. |
 | **Lyrics** | A Lyrics button that fetches synced lyrics and follows the playhead, independent of mirroring. |
-| **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. |
+| **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar, and the Remote and Queue tabs are exempt — they stay put so you can drive the TV while mirroring. |
 | **Cast fallback** | With no Aura running, tracks can be Cast to a TV or speaker through the bridge. |
 | **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. |
 | **Launch** | Optional: start Aura if it is not running (needs ADB — see Limitations). |

@@ -856,6 +856,9 @@ function renderQueue() {
 // native version of that screen.
 function applyMirror(m) {
   if (!m || state.mirrorApplying) return;
+  // Never yank the view out from under someone using the D-pad or reading the
+  // queue: those tabs are theirs until they leave them.
+  if (state.view === 'remote' || state.view === 'queue') return;
   state.mirrorApplying = true;
   try {
     if (m.screen === 'nowplaying') {
@@ -936,6 +939,7 @@ function navigateTV(screen, itemId) {
 /* ---------------- views ---------------- */
 
 function setView(view) {
+  state.view = view;
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   $(`view-${view}`).classList.remove('hidden');
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
@@ -997,12 +1001,26 @@ $('targetBtn').addEventListener('click', async () => {
   openSheet('deviceSheet');
 });
 
-$('mirrorChk').checked = state.mirrorOn;
-$('mirrorChk').addEventListener('change', e => {
-  state.mirrorOn = e.target.checked;
+function renderMirrorBtn() {
+  const btn = $('mirrorBtn');
+  btn.classList.toggle('on', state.mirrorOn);
+  btn.setAttribute('aria-pressed', String(state.mirrorOn));
+  btn.title = state.mirrorOn ? 'Mirroring the TV — tap to stop' : 'Mirror the TV';
+}
+
+$('mirrorBtn').addEventListener('click', () => {
+  state.mirrorOn = !state.mirrorOn;
   store.set('mirrorOn', state.mirrorOn);
-  if (!state.mirrorOn) stopMirror();
+  renderMirrorBtn();
+  if (state.mirrorOn) {
+    toast('Mirroring the TV');
+    pollMirror();
+  } else {
+    stopMirror();
+    toast('Mirroring off');
+  }
 });
+renderMirrorBtn();
 
 document.addEventListener('click', e => {
   const close = e.target.closest('[data-close]');

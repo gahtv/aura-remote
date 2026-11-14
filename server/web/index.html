@@ -36,6 +36,7 @@
 <div id="main" class="screen hidden">
   <header>
     <div class="brand">Aura Remote</div>
+    <button id="mirrorBtn" class="chip" aria-pressed="false" title="Mirror the TV">Mirror</button>
     <button id="targetBtn" class="target-btn">
       <span id="targetState">connecting…</span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
@@ -123,11 +124,7 @@
 
     <section id="view-remote" class="view hidden">
       <div class="mirror-head">
-        <h2>Remote</h2>
-        <label class="switch">
-          <input type="checkbox" id="mirrorChk">
-          <span>Mirror with TV</span>
-        </label>
+        <h2 style="margin:0">Remote</h2>
       </div>
 
 
@@ -152,7 +149,7 @@
         <button class="dbtn wide" data-key="playpause">Play/Pause</button>
       </div>
       <div class="muted small" id="dpadMsg"></div>
-      <div class="muted small" style="margin-top:8px">With mirroring on, the remote follows the TV and the TV follows the remote.</div>
+      <div class="muted small" style="margin-top:8px">Mirroring lives in the top bar. While this tab is open the view stays put, so you can drive the TV without being pulled back to its screen.</div>
     </section>
   </main>
 
