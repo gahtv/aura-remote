@@ -44,6 +44,8 @@ const state = {
   mirrorOn: store.get('mirrorOn') === true,
   mirrorTimer: null,
   mirrorApplying: false,
+  mirrorSig: '',
+  queueSig: '',
   aura: null,
   unpaired: false,
   pairing: false,
@@ -833,10 +835,16 @@ async function pairWithTv() {
   }
 }
 
-function renderQueue() {
+function renderQueue(force = false) {
   const list = $('queueList');
   if (!list) return;
   const q = state.queue || [];
+
+  // Rebuilding the list on every poll resets its scroll position; only redraw
+  // when the queue or the current index actually changed.
+  const signature = q.map(t => t.id).join(',') + '#' + state.queueIndex;
+  if (!force && signature === state.queueSig) return;
+  state.queueSig = signature;
   $('queueCount').textContent = q.length ? `${state.queueIndex + 1} of ${q.length}` : 'empty';
   if (!q.length) {
     list.innerHTML = '<div class="muted small" style="padding:6px 4px">Aura has nothing queued.</div>';
@@ -859,6 +867,12 @@ function applyMirror(m) {
   // Never yank the view out from under someone using the D-pad or reading the
   // queue: those tabs are theirs until they leave them.
   if (state.view === 'remote' || state.view === 'queue') return;
+
+  // Applying the same screen over and over re-renders the list and throws away
+  // the scroll position. Only act when the TV actually moved.
+  const signature = `${m.screen}:${m.itemId || ''}`;
+  if (signature === state.mirrorSig) return;
+  state.mirrorSig = signature;
   state.mirrorApplying = true;
   try {
     if (m.screen === 'nowplaying') {
@@ -944,7 +958,7 @@ function setView(view) {
   $(`view-${view}`).classList.remove('hidden');
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   if (view === 'library' && !$('libraryBody').children.length) loadLibrary();
-  if (view === 'queue') renderQueue();
+  if (view === 'queue') renderQueue(true);
   if (view === 'now') navigateTV('home');
   if (view === 'library') navigateTV(state.lib);
 }
@@ -979,10 +993,14 @@ $('search').addEventListener('input', () => {
   searchTimer = setTimeout(loadLibrary, 280);
 });
 
-function selectLibTab(tab) {
+function selectLibTab(tab, { force = false } = {}) {
   if (!['albums', 'artists', 'tracks'].includes(tab)) return;
+  const alreadyShowing = tab === state.lib
+    && !$('search').value
+    && $('libraryBody').children.length > 0;
   state.lib = tab;
   document.querySelectorAll('.seg').forEach(b => b.classList.toggle('active', b.dataset.lib === tab));
+  if (alreadyShowing && !force) return;   // same tab: keep the scroll position
   $('search').value = '';
   loadLibrary();
 }
