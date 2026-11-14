@@ -1,0 +1,16 @@
+services:
+  aura-remote:
+    build: .
+    container_name: aura-remote
+    restart: unless-stopped
+    env_file: ../.env
+    ports:
+      # The bridge listens on 8099 inside the container.
+      - "${BRIDGE_PORT:-8100}:8099"
+    volumes:
+      # Pairing token + bridge sessions (created on first pair).
+      - ../data:/data
+      # ADB key, only needed if you use auto-launch.
+      - ../adb-keys:/root/.android
+      # Mount the UI so HTML/CSS/JS edits don't need an image rebuild.
+      - ./web:/app/web:ro

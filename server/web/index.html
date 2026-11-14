@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0c0b">
+<title>Aura Remote</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ---------- login ---------- -->
+<div id="login" class="screen">
+  <h1>Aura Remote</h1>
+  <p>Controls Aura on the TV. Falls back to casting when Aura isn't running.</p>
+
+  <div class="field">
+    <label for="server">Jellyfin server</label>
+    <input id="server" type="url" inputmode="url" autocomplete="url" placeholder="http://jellyfin.local:8096">
+  </div>
+  <div class="field">
+    <label for="user">Username</label>
+    <input id="user" type="text" autocomplete="username" autocapitalize="none">
+  </div>
+  <div class="field">
+    <label for="pass">Password</label>
+    <input id="pass" type="password" autocomplete="current-password">
+  </div>
+
+  <button id="loginBtn" class="btn primary">Sign in</button>
+  <div id="loginError"></div>
+</div>
+
+<!-- ---------- main ---------- -->
+<div id="main" class="screen hidden">
+  <header>
+    <div class="brand">Aura Remote</div>
+    <button id="targetBtn" class="target-btn">
+      <span id="targetState">connecting…</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section id="view-now" class="view">
+      <div id="pairBox" class="card hidden">
+        <div class="pair-msg" id="pairMsg">This remote isn't paired with the TV yet.</div>
+        <button id="btnPair" class="btn primary">Pair with TV</button>
+        <div class="muted small" style="margin-top:8px">Aura will ask you to allow this device on the TV.</div>
+      </div>
+
+      <div id="np" class="card">
+        <div id="npIdle">Nothing playing</div>
+        <div id="npLaunch" class="hidden">
+          <div id="launchMsg">Aura isn't running on the TV.</div>
+          <button id="btnLaunch" class="btn">Start Aura</button>
+        </div>
+        <div id="npActive" class="hidden">
+          <div class="np-top">
+            <img id="npArt" alt="">
+            <div class="np-meta">
+              <div id="npTitle">—</div>
+              <div id="npArtist">—</div>
+              <div id="npAlbum"></div>
+            </div>
+          </div>
+          <div class="seek">
+            <span class="time" id="npPos">0:00</span>
+            <input id="npSeek" type="range" min="0" max="1000" value="0">
+            <span class="time" id="npDur">0:00</span>
+          </div>
+          <div class="transport">
+            <button class="tbtn" id="btnShuffle" title="Shuffle">
+              <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-3.2l-2.3 2.7-1.4-1.6L12.5 6H17V3zM3 6h3.9l2.6 3.1-1.4 1.6L6.2 8H3V6zm14 11l4 4-4 4v-3h-4.5l-2.5-3 1.5-1.6 2 2.4H17v-3zM3 18h3.2l8.4-10.2 1.5 1.2L7.1 20H3v-2z"/></svg>
+            </button>
+            <button class="tbtn" id="btnPrev" title="Previous">
+              <svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zm12 0v14l-10-7z"/></svg>
+            </button>
+            <button class="tbtn play" id="btnPlay" title="Play/Pause">
+              <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="tbtn" id="btnNext" title="Next">
+              <svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM6 5l10 7-10 7z"/></svg>
+            </button>
+            <button class="tbtn" id="btnLyrics" title="Lyrics">
+              <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
+            </button>
+            <button class="tbtn" id="btnRepeat" title="Repeat">
+              <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="lyricsBox" class="hidden">
+        <h2>Lyrics</h2>
+        <div id="lyricsLines" class="lyrics"></div>
+      </div>
+
+      <div id="autoRow">
+        <label><input type="checkbox" id="autoChk" checked> Start Aura automatically when it isn't running</label>
+      </div>
+    </section>
+
+    <section id="view-library" class="view hidden">
+      <div class="segmented" role="tablist">
+        <button class="seg active" data-lib="albums">Albums</button>
+        <button class="seg" data-lib="artists">Artists</button>
+        <button class="seg" data-lib="tracks">Tracks</button>
+      </div>
+      <input id="search" type="search" placeholder="Search" autocomplete="off">
+      <div id="libraryBody"></div>
+    </section>
+
+    <section id="view-queue" class="view hidden">
+      <div class="mirror-head">
+        <h2 style="margin:0">Queue</h2>
+        <span id="queueCount" class="muted small"></span>
+      </div>
+      <div id="queueList"></div>
+    </section>
+
+    <section id="view-remote" class="view hidden">
+      <div class="mirror-head">
+        <h2>Remote</h2>
+        <label class="switch">
+          <input type="checkbox" id="mirrorChk">
+          <span>Mirror with TV</span>
+        </label>
+      </div>
+
+
+      <div id="dpad">
+        <button class="dbtn up" data-key="up" aria-label="Up">
+          <svg viewBox="0 0 24 24"><path d="M12 7l6 7H6z"/></svg>
+        </button>
+        <button class="dbtn left" data-key="left" aria-label="Left">
+          <svg viewBox="0 0 24 24"><path d="M9 12l7-6v12z"/></svg>
+        </button>
+        <button class="dbtn center" data-key="center" aria-label="Select">OK</button>
+        <button class="dbtn right" data-key="right" aria-label="Right">
+          <svg viewBox="0 0 24 24"><path d="M15 12l-7 6V6z"/></svg>
+        </button>
+        <button class="dbtn down" data-key="down" aria-label="Down">
+          <svg viewBox="0 0 24 24"><path d="M12 17l-6-7h12z"/></svg>
+        </button>
+      </div>
+      <div class="dash-row">
+        <button class="dbtn wide" data-key="back">Back</button>
+        <button class="dbtn wide" data-key="home">Home</button>
+        <button class="dbtn wide" data-key="playpause">Play/Pause</button>
+      </div>
+      <div class="muted small" id="dpadMsg"></div>
+      <div class="muted small" style="margin-top:8px">With mirroring on, the remote follows the TV and the TV follows the remote.</div>
+    </section>
+  </main>
+
+  <nav id="tabs">
+    <button class="tab active" data-view="now">Now</button>
+    <button class="tab" data-view="library">Library</button>
+    <button class="tab" data-view="queue">Queue</button>
+    <button class="tab" data-view="remote">Remote</button>
+  </nav>
+</div>
+
+<!-- ---------- device sheet ---------- -->
+<div id="deviceSheet" class="sheet hidden">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <div class="grow"><strong>Play on</strong></div>
+      <button class="x" data-close="deviceSheet" aria-label="Close">✕</button>
+    </div>
+    <div id="deviceList" class="sheet-list"></div>
+  </div>
+</div>
+
+<!-- ---------- detail sheet ---------- -->
+<div id="detailSheet" class="sheet hidden">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <img id="sheetArt" class="thumb" alt="">
+      <div class="grow">
+        <div id="sheetTitle" class="sheet-title">—</div>
+        <div id="sheetSub" class="muted small">—</div>
+      </div>
+      <button class="x" data-close="detailSheet" aria-label="Close">✕</button>
+    </div>
+    <div id="sheetActions" class="sheet-actions"></div>
+    <div id="sheetList" class="sheet-list"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
