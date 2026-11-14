@@ -898,6 +898,7 @@ function applyMirror(m) {
 async function setLyricsVisible(on) {
   state.lyricsOn = on;
   $('lyricsBox').classList.toggle('hidden', !on);
+  $('btnLyrics').classList.toggle('on', on);
   if (!on) return;
 
   const itemId = state.np?.item?.Id;
@@ -959,7 +960,9 @@ function setView(view) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   if (view === 'library' && !$('libraryBody').children.length) loadLibrary();
   if (view === 'queue') renderQueue(true);
-  if (view === 'now') navigateTV('home');
+  // "Now" in the remote is Now Playing, not Aura's Home screen. Sending 'home'
+  // here kicked the TV off Now Playing, so the mirror then chased it to Home.
+  if (view === 'now') navigateTV('nowplaying');
   if (view === 'library') navigateTV(state.lib);
 }
 
@@ -972,7 +975,10 @@ $('btnPlay').addEventListener('click', () => sendTransport(state.np?.playing ? '
 $('btnNext').addEventListener('click', () => sendTransport('next'));
 $('btnPrev').addEventListener('click', () => sendTransport('prev'));
 $('btnRepeat').addEventListener('click', toggleRepeat);
-$('btnLyrics').addEventListener('click', () => setLyricsVisible(!state.lyricsOn));
+$('btnLyrics').addEventListener('click', () => {
+  setLyricsVisible(!state.lyricsOn);
+  toast(state.lyricsOn ? 'Lyrics on' : 'Lyrics off', 1200);
+});
 $('btnPair').addEventListener('click', pairWithTv);
 $('btnShuffle').addEventListener('click', toggleShuffle);
 $('btnLaunch').addEventListener('click', () => launchAura(true));

@@ -16,7 +16,7 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 | **ATMOS badges** | Anything whose audio stream is `eac3` with a `JOC` or `Dolby Atmos` profile — the same rule Aura uses. Cached 24 h per server+user. |
 | **Queue** | The endpoint's live queue and current index; tap a row to jump. |
 | **Transport** | Play/pause/next/previous/seek, repeat and shuffle — semantic commands, not key presses. |
-| **Lyrics** | A Lyrics button that fetches synced lyrics and follows the playhead, independent of mirroring. |
+| **Lyrics** | A labelled **Lyrics** chip in Now Playing that fetches synced lyrics and follows the playhead. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
 | **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar; the Remote and Queue tabs are exempt so you can drive the TV while mirroring, and re-applying a screen the remote is already showing is a no-op, so lists keep their scroll position. |
 | **Cast fallback** | With no Aura running, tracks can be Cast to a TV or speaker through the bridge. |
 | **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. |

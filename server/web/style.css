@@ -471,6 +471,20 @@ h2 {
 }
 
 
+
+.np-chip {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.np-chip.on {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #17120a;
+  font-weight: 650;
+}
+
 /* ---------- lyrics ---------- */
 
 .lyrics {
