@@ -36,12 +36,17 @@
 <div id="main" class="screen hidden">
   <header>
     <div class="brand">Aura Remote</div>
-    <button id="mirrorBtn" class="chip" aria-pressed="false" title="Mirror the TV">Mirror</button>
-    <button id="targetBtn" class="target-btn">
-      <span id="targetState">connecting…</span>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
+    <button id="mirrorBtn" class="chip" aria-pressed="false" title="Mirror the TV">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M440-520h80v56q0 7 6 9.5t11-2.5l89-89q6-6 6-14t-6-14l-89-89q-5-5-11-2.5t-6 9.5v56h-80q-50 0-85 35t-35 85v40q0 17 11.5 28.5T360-400q17 0 28.5-11.5T400-440v-40q0-17 11.5-28.5T440-520ZM80-120q-17 0-28.5-11.5T40-160q0-17 11.5-28.5T80-200h800q17 0 28.5 11.5T920-160q0 17-11.5 28.5T880-120H80Zm80-120q-33 0-56.5-23.5T80-320v-440q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v440q0 33-23.5 56.5T800-240H160Zm0-80h640v-440H160v440Zm0 0v-440 440Z"/></svg>Mirror
     </button>
-    <button id="signOutBtn" class="chip" title="Sign out of this remote">Sign out</button>
+    <button id="targetBtn" class="target-btn">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M360-40q-17 0-28.5-11.5T320-80v-480q0-17 11.5-28.5T360-600h240q17 0 28.5 11.5T640-560v480q0 17-11.5 28.5T600-40H360Zm120-350q21 0 35.5-14.5T530-440q0-21-14.5-35.5T480-490q-21 0-35.5 14.5T430-440q0 21 14.5 35.5T480-390Zm0-330q-30 0-58 8t-53 25q-14 9-31 8.5T310-690q-12-12-11.5-28t13.5-26q36-27 79-41.5t89-14.5q46 0 89 14.5t79 41.5q13 10 13.5 26T650-690q-11 11-27 12t-30-8q-25-17-54-25.5t-59-8.5Zm0-160q-62 0-119 19.5T257-803q-14 11-31 11.5T197-803q-12-12-12-29t14-28q60-48 131.5-74T480-960q78 0 150 25.5T760-859q13 11 13.5 28T762-802q-11 11-27.5 11.5T705-801q-48-39-105-59t-120-20Zm-80 760h160v-400H400v400Zm0 0h160-160Z"/></svg>
+      <span id="targetState">connecting…</span>
+      <svg class="ic chev" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z"/></svg>
+    </button>
+    <button id="signOutBtn" class="chip" title="Sign out of this remote">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h240q17 0 28.5 11.5T480-800q0 17-11.5 28.5T440-760H200v560h240q17 0 28.5 11.5T480-160q0 17-11.5 28.5T440-120H200Zm487-320H400q-17 0-28.5-11.5T360-480q0-17 11.5-28.5T400-520h287l-75-75q-11-11-11-27t11-28q11-12 28-12.5t29 11.5l143 143q12 12 12 28t-12 28L669-309q-12 12-28.5 11.5T612-310q-11-12-10.5-28.5T613-366l74-74Z"/></svg>Sign out
+    </button>
   </header>
 
   <main>
@@ -66,7 +71,9 @@
               <div id="npArtist">—</div>
               <div id="npAlbum"></div>
             </div>
-            <button id="btnLyrics" class="chip np-chip">Lyrics</button>
+            <button id="btnLyrics" class="chip np-chip">
+              <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M160-320v-480 480Zm440 80H240l-92 92q-19 19-43.5 8.5T80-177v-623q0-33 23.5-56.5T160-880h440q33 0 56.5 23.5T680-800v40q0 17-11.5 28.5T640-720q-17 0-28.5-11.5T600-760v-40H160v480h440v-120q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440v120q0 33-23.5 56.5T600-240ZM280-400h80q17 0 28.5-11.5T400-440q0-17-11.5-28.5T360-480h-80q-17 0-28.5 11.5T240-440q0 17 11.5 28.5T280-400Zm480-80q-50 0-85-35t-35-85q0-50 35-85t85-35q11 0 21 2t19 5v-167q0-17 11.5-28.5T840-920h80q17 0 28.5 11.5T960-880q0 17-11.5 28.5T920-840h-40v240q0 50-35 85t-85 35Zm-480-40h200q17 0 28.5-11.5T520-560q0-17-11.5-28.5T480-600H280q-17 0-28.5 11.5T240-560q0 17 11.5 28.5T280-520Zm0-120h200q17 0 28.5-11.5T520-680q0-17-11.5-28.5T480-720H280q-17 0-28.5 11.5T240-680q0 17 11.5 28.5T280-640Z"/></svg>Lyrics
+            </button>
           </div>
           <div class="seek">
             <span class="time" id="npPos">0:00</span>
@@ -75,19 +82,19 @@
           </div>
           <div class="transport">
             <button class="tbtn" id="btnShuffle" title="Shuffle">
-              <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-3.2l-2.3 2.7-1.4-1.6L12.5 6H17V3zM3 6h3.9l2.6 3.1-1.4 1.6L6.2 8H3V6zm14 11l4 4-4 4v-3h-4.5l-2.5-3 1.5-1.6 2 2.4H17v-3zM3 18h3.2l8.4-10.2 1.5 1.2L7.1 20H3v-2z"/></svg>
+              <svg viewBox="0 -960 960 960"><path d="M600-160q-17 0-28.5-11.5T560-200q0-17 11.5-28.5T600-240h64l-99-99q-12-12-11.5-28.5T566-396q12-12 28.5-12t28.5 12l97 98v-62q0-17 11.5-28.5T760-400q17 0 28.5 11.5T800-360v160q0 17-11.5 28.5T760-160H600Zm-428-12q-11-11-11-28t11-28l492-492h-64q-17 0-28.5-11.5T560-760q0-17 11.5-28.5T600-800h160q17 0 28.5 11.5T800-760v160q0 17-11.5 28.5T760-560q-17 0-28.5-11.5T720-600v-64L228-172q-11 11-28 11t-28-11Zm-1-560q-11-11-11-28t11-28q11-11 27.5-11t28.5 11l168 167q11 11 11.5 27.5T395-565q-11 11-28 11t-28-11L171-732Z"/></svg>
             </button>
             <button class="tbtn" id="btnPrev" title="Previous">
-              <svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zm12 0v14l-10-7z"/></svg>
+              <svg viewBox="0 -960 960 960"><path d="M220-280v-400q0-17 11.5-28.5T260-720q17 0 28.5 11.5T300-680v400q0 17-11.5 28.5T260-240q-17 0-28.5-11.5T220-280Zm458-1L430-447q-9-6-13.5-14.5T412-480q0-10 4.5-18.5T430-513l248-166q5-4 11-5t11-1q16 0 28 11t12 29v330q0 18-12 29t-28 11q-5 0-11-1t-11-5Zm-18-199Zm0 90v-180l-136 90 136 90Z"/></svg>
             </button>
             <button class="tbtn play" id="btnPlay" title="Play/Pause">
-              <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <svg id="playIcon" viewBox="0 -960 960 960"><path d="M320-273v-414q0-17 12-28.5t28-11.5q5 0 10.5 1.5T381-721l326 207q9 6 13.5 15t4.5 19q0 10-4.5 19T707-446L381-239q-5 3-10.5 4.5T360-233q-16 0-28-11.5T320-273Zm80-207Zm0 134 210-134-210-134v268Z"/></svg>
             </button>
             <button class="tbtn" id="btnNext" title="Next">
-              <svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM6 5l10 7-10 7z"/></svg>
+              <svg viewBox="0 -960 960 960"><path d="M660-280v-400q0-17 11.5-28.5T700-720q17 0 28.5 11.5T740-680v400q0 17-11.5 28.5T700-240q-17 0-28.5-11.5T660-280Zm-440-35v-330q0-18 12-29t28-11q5 0 11 1t11 5l248 166q9 6 13.5 14.5T548-480q0 10-4.5 18.5T530-447L282-281q-5 4-11 5t-11 1q-16 0-28-11t-12-29Zm80-165Zm0 90 136-90-136-90v180Z"/></svg>
             </button>
             <button class="tbtn" id="btnRepeat" title="Repeat">
-              <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+              <svg viewBox="0 -960 960 960"><path d="m274-200 34 34q12 12 11.5 28T308-110q-12 12-28.5 12.5T251-109L148-212q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l103-103q12-12 28.5-11.5T308-370q11 12 11.5 28T308-314l-34 34h406v-120q0-17 11.5-28.5T720-440q17 0 28.5 11.5T760-400v120q0 33-23.5 56.5T680-200H274Zm412-480H280v120q0 17-11.5 28.5T240-520q-17 0-28.5-11.5T200-560v-120q0-33 23.5-56.5T280-760h406l-34-34q-12-12-11.5-28t11.5-28q12-12 28.5-12.5T709-851l103 103q6 6 8.5 13t2.5 15q0 8-2.5 15t-8.5 13L709-589q-12 12-28.5 11.5T652-590q-11-12-11.5-28t11.5-28l34-34Z"/></svg>
             </button>
           </div>
         </div>
@@ -109,7 +116,10 @@
         <button class="seg" data-lib="artists">Artists</button>
         <button class="seg" data-lib="tracks">Tracks</button>
       </div>
-      <input id="search" type="search" placeholder="Search" autocomplete="off">
+      <div class="search-row">
+        <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M380-320q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l224 224q11 11 11 28t-11 28q-11 11-28 11t-28-11L532-372q-30 24-69 38t-83 14Zm0-80q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
+        <input id="search" type="search" placeholder="Search" autocomplete="off">
+      </div>
       <div id="libraryBody"></div>
     </section>
 
@@ -129,17 +139,19 @@
 
       <div id="dpad">
         <button class="dbtn up" data-key="up" aria-label="Up">
-          <svg viewBox="0 0 24 24"><path d="M12 7l6 7H6z"/></svg>
+          <svg viewBox="0 -960 960 960"><path d="M480-528 324-372q-11 11-28 11t-28-11q-11-11-11-28t11-28l184-184q12-12 28-12t28 12l184 184q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-528Z"/></svg>
         </button>
         <button class="dbtn left" data-key="left" aria-label="Left">
-          <svg viewBox="0 0 24 24"><path d="M9 12l7-6v12z"/></svg>
+          <svg viewBox="0 -960 960 960"><path d="m432-480 156 156q11 11 11 28t-11 28q-11 11-28 11t-28-11L348-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l184-184q11-11 28-11t28 11q11 11 11 28t-11 28L432-480Z"/></svg>
         </button>
-        <button class="dbtn center" data-key="center" aria-label="Select">OK</button>
+        <button class="dbtn center" data-key="center" aria-label="Select">
+          <svg viewBox="0 -960 960 960"><path d="m382-354 339-339q12-12 28-12t28 12q12 12 12 28.5T777-636L410-268q-12 12-28 12t-28-12L182-440q-12-12-11.5-28.5T183-497q12-12 28.5-12t28.5 12l142 143Z"/></svg>
+        </button>
         <button class="dbtn right" data-key="right" aria-label="Right">
-          <svg viewBox="0 0 24 24"><path d="M15 12l-7 6V6z"/></svg>
+          <svg viewBox="0 -960 960 960"><path d="M504-480 348-636q-11-11-11-28t11-28q11-11 28-11t28 11l184 184q6 6 8.5 13t2.5 15q0 8-2.5 15t-8.5 13L404-268q-11 11-28 11t-28-11q-11-11-11-28t11-28l156-156Z"/></svg>
         </button>
         <button class="dbtn down" data-key="down" aria-label="Down">
-          <svg viewBox="0 0 24 24"><path d="M12 17l-6-7h12z"/></svg>
+          <svg viewBox="0 -960 960 960"><path d="M480-361q-8 0-15-2.5t-13-8.5L268-556q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-372q-6 6-13 8.5t-15 2.5Z"/></svg>
         </button>
       </div>
       <div class="dash-row">
@@ -153,10 +165,18 @@
   </main>
 
   <nav id="tabs">
-    <button class="tab active" data-view="now">Now</button>
-    <button class="tab" data-view="library">Library</button>
-    <button class="tab" data-view="queue">Queue</button>
-    <button class="tab" data-view="remote">Remote</button>
+    <button class="tab active" data-view="now">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-382q0-17 11.5-28.5T520-840h160q17 0 28.5 11.5T720-800v80q0 17-11.5 28.5T680-680H560v400q0 66-47 113t-113 47Z"/></svg>Now
+    </button>
+    <button class="tab" data-view="library">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M500-360q42 0 71-29t29-71v-220h80q17 0 28.5-11.5T720-720q0-17-11.5-28.5T680-760h-80q-17 0-28.5 11.5T560-720v180q-13-10-28-15t-32-5q-42 0-71 29t-29 71q0 42 29 71t71 29ZM320-240q-33 0-56.5-23.5T240-320v-480q0-33 23.5-56.5T320-880h480q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H320Zm0-80h480v-480H320v480ZM160-80q-33 0-56.5-23.5T80-160v-520q0-17 11.5-28.5T120-720q17 0 28.5 11.5T160-680v520h520q17 0 28.5 11.5T720-120q0 17-11.5 28.5T680-80H160Zm160-720v480-480Z"/></svg>Library
+    </button>
+    <button class="tab" data-view="queue">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M640-160q-50 0-85-35t-35-85q0-50 35-85t85-35q11 0 21 1.5t19 6.5v-288q0-17 11.5-28.5T720-720h120q17 0 28.5 11.5T880-680q0 17-11.5 28.5T840-640h-80v360q0 50-35 85t-85 35ZM160-320q-17 0-28.5-11.5T120-360q0-17 11.5-28.5T160-400h240q17 0 28.5 11.5T440-360q0 17-11.5 28.5T400-320H160Zm0-160q-17 0-28.5-11.5T120-520q0-17 11.5-28.5T160-560h400q17 0 28.5 11.5T600-520q0 17-11.5 28.5T560-480H160Zm0-160q-17 0-28.5-11.5T120-680q0-17 11.5-28.5T160-720h400q17 0 28.5 11.5T600-680q0 17-11.5 28.5T560-640H160Z"/></svg>Queue
+    </button>
+    <button class="tab" data-view="remote">
+      <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M360-40q-17 0-28.5-11.5T320-80v-480q0-17 11.5-28.5T360-600h240q17 0 28.5 11.5T640-560v480q0 17-11.5 28.5T600-40H360Zm120-350q21 0 35.5-14.5T530-440q0-21-14.5-35.5T480-490q-21 0-35.5 14.5T430-440q0 21 14.5 35.5T480-390Zm0-330q-30 0-58 8t-53 25q-14 9-31 8.5T310-690q-12-12-11.5-28t13.5-26q36-27 79-41.5t89-14.5q46 0 89 14.5t79 41.5q13 10 13.5 26T650-690q-11 11-27 12t-30-8q-25-17-54-25.5t-59-8.5Zm0-160q-62 0-119 19.5T257-803q-14 11-31 11.5T197-803q-12-12-12-29t14-28q60-48 131.5-74T480-960q78 0 150 25.5T760-859q13 11 13.5 28T762-802q-11 11-27.5 11.5T705-801q-48-39-105-59t-120-20Zm-80 760h160v-400H400v400Zm0 0h160-160Z"/></svg>Remote
+    </button>
   </nav>
 </div>
 
@@ -165,7 +185,9 @@
   <div class="sheet-inner">
     <div class="sheet-head">
       <div class="grow"><strong>Play on</strong></div>
-      <button class="x" data-close="deviceSheet" aria-label="Close">✕</button>
+      <button class="x" data-close="deviceSheet" aria-label="Close">
+        <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/></svg>
+      </button>
     </div>
     <div id="deviceList" class="sheet-list"></div>
   </div>
@@ -180,7 +202,9 @@
         <div id="sheetTitle" class="sheet-title">—</div>
         <div id="sheetSub" class="muted small">—</div>
       </div>
-      <button class="x" data-close="detailSheet" aria-label="Close">✕</button>
+      <button class="x" data-close="detailSheet" aria-label="Close">
+        <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/></svg>
+      </button>
     </div>
     <div id="sheetActions" class="sheet-actions"></div>
     <div id="sheetList" class="sheet-list"></div>

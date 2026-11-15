@@ -56,6 +56,10 @@ img { display: block; }
 .field input:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: var(--card-hi);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -96,9 +100,17 @@ header {
 
 .brand { font-weight: 700; letter-spacing: -0.01em; }
 
+/* Material Symbols (sprite at the top of index.html). Sized to the text it
+   sits next to; fill follows the text colour. */
+.ic { width: 16px; height: 16px; fill: currentColor; flex: 0 0 auto; }
+.btn .ic { width: 18px; height: 18px; }
+
 
 /* Mirror toggle in the top bar — always reachable, even from the Remote tab. */
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
   background: var(--card);
   border: 1px solid var(--line);
@@ -108,6 +120,8 @@ header {
   color: var(--dim);
   cursor: pointer;
 }
+
+.chip .ic { width: 15px; height: 15px; }
 
 .chip.on {
   background: var(--amber);
@@ -132,6 +146,7 @@ header {
 }
 
 .target-btn svg { width: 16px; height: 16px; fill: var(--dim); flex: 0 0 auto; }
+.target-btn .chev { width: 18px; height: 18px; }
 #targetState { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #targetState.live { color: var(--amber); }
 
@@ -154,13 +169,19 @@ main { padding: 16px 16px 96px; flex: 1; }
 
 .tab {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   background: none;
   border: 0;
-  padding: 14px 0;
+  padding: 10px 0 9px;
   color: var(--dim);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
+
+.tab .ic { width: 22px; height: 22px; }
 
 .tab.active { color: var(--amber); font-weight: 650; }
 
@@ -265,12 +286,25 @@ h2 {
   font-weight: 600;
 }
 
+.search-row { position: relative; }
+.search-row .ic {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  fill: var(--dim);
+  pointer-events: none;
+}
+
 #search {
   width: 100%;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 13px 14px;
+  /* left inset clears the search glyph */
+  padding: 13px 14px 13px 40px;
 }
 
 #search:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
@@ -313,6 +347,7 @@ h2 {
 .rowart { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--card-hi); flex: 0 0 auto; }
 
 .row.device.current { background: var(--card); }
+.row .ic.lead { width: 20px; height: 20px; fill: var(--dim); }
 
 
 .queue-row.current { background: var(--card); }
@@ -372,7 +407,8 @@ h2 {
 .thumb { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: var(--card-hi); flex: 0 0 auto; }
 .sheet-title { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.x { background: transparent; border: 0; color: var(--dim); font-size: 20px; padding: 6px 10px; cursor: pointer; }
+.x { display: inline-flex; background: transparent; border: 0; color: var(--dim); padding: 6px 10px; cursor: pointer; }
+.x .ic { width: 20px; height: 20px; }
 
 .sheet-actions { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; }
 .sheet-list { overflow-y: auto; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
@@ -416,7 +452,8 @@ h2 {
 }
 
 .dbtn:active { background: var(--card-hi); transform: scale(0.97); }
-.dbtn svg { width: 24px; height: 24px; fill: currentColor; }
+.dbtn svg { width: 44px; height: 44px; fill: currentColor; }
+.dbtn.center svg { width: 34px; height: 34px; }
 .dbtn.center { background: var(--amber); color: #17120a; border-color: var(--amber); font-size: 15px; font-weight: 700; }
 
 .dbtn.up { grid-area: 1 / 2; }
