@@ -10,9 +10,10 @@ const link = { address: '192.168.1.50:8099', deviceName: 'Living Room TV' };
 test('hostOf strips ports, schemes and IPv4-mapped prefixes', () => {
   assert.equal(hostOf('192.168.1.50:8099'), '192.168.1.50');
   assert.equal(hostOf('::ffff:192.168.1.50'), '192.168.1.50');
-  assert.equal(hostOf('[fe80::1]:8099'), 'fe80::1');
+  assert.equal(hostOf('[fe80::1]:8099'), 'fe80:0:0:0:0:0:0:1');
+  assert.equal(hostOf('[FE80:0000::0001%wlan0]:8099'), 'fe80:0:0:0:0:0:0:1');
   assert.equal(hostOf('http://TV.local:8099/'), 'tv.local');
-  assert.equal(hostOf('fe80::1'), 'fe80::1');
+  assert.equal(hostOf('fe80::1'), 'fe80:0:0:0:0:0:0:1');
   assert.equal(hostOf(''), '');
   assert.equal(hostOf(undefined), '');
 });
@@ -48,9 +49,12 @@ test('a name match never overrides two different addresses', () => {
   assert.equal(isLinkedSession(other, [other], { address: 'tv.local:8099', deviceName: 'Android TV' }), true);
 });
 
-test('IPv6 spelled differently still matches by name', () => {
+test('IPv6 matches by address however it is spelled, and different IPv6 addresses never match by name', () => {
   const tv = { DeviceName: 'Living Room TV', RemoteEndPoint: 'fe80::1' };
-  assert.equal(isLinkedSession(tv, [tv], { address: '[fe80:0:0:0:0:0:0:1]:8099', deviceName: 'Living Room TV' }), true);
+  assert.equal(isLinkedSession(tv, [tv], { address: '[fe80:0:0:0:0:0:0:1]:8099', deviceName: '' }), true);
+  const other = { DeviceName: 'Android TV', RemoteEndPoint: 'fe80::2' };
+  assert.equal(isLinkedSession(other, [other], { address: '[fe80::1]:8099', deviceName: 'Android TV' }), false);
+  assert.equal(isLinkedSession(other, [other], { address: '[::1]:8099', deviceName: 'Android TV' }), true);
 });
 
 test('duplicate sessions of the same TV still match by name', () => {
