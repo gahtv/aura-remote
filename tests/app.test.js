@@ -26,7 +26,9 @@ function loadApp() {
   const calls = [];
   const elements = new Map();
   let controlFails = false;
+  let pairedFails = false;
   const respond = (url) => {
+    if (pairedFails && url.includes('/api/aura/paired')) throw new Error('bridge down');
     if (controlFails && url.includes('/api/aura/control')) return { ok: false, status: 502, text: async () => 'down' };
     const body = url.includes('/api/aura/state')
       ? { deviceName: 'Living Room TV', queue: [{ id: 'q1', title: 'Linked', artist: '' }], queueIndex: 0 }
@@ -73,6 +75,7 @@ function loadApp() {
   return {
     calls, run,
     failControl: () => { controlFails = true; },
+    failPaired: on => { pairedFails = on; },
     select: key => { run(`state.target = state.sessions.find(s => s.key === '${key}'); state.np = { duration: 200 };`); calls.length = 0; },
     bridgeCalls: () => calls.filter(c => c.url.startsWith('http://bridge/api/aura/')),
     jellyfinCalls: () => calls.filter(c => c.url.startsWith('http://jf/')),
@@ -176,4 +179,65 @@ test('the link is identified from the bridge', async () => {
   app.run(`state.link = { address: '', deviceName: '' }`);
   await app.run(`loadLink()`);
   assert.equal(app.run(`state.link.address`), '192.168.1.50:8099');
+});
+
+test('a Cast target gets neither the linked TV\'s queue, skip nor navigation', async () => {
+  const app = loadApp();
+  app.run(`state.castTargets = [{ kind: 'cast', key: 'cast:k', label: 'Kitchen' }]; state.mirrorOn = true`);
+  app.run(`state.target = state.castTargets[0]`);
+  app.calls.length = 0;
+  await app.run(`pollMirror()`);
+  assert.equal(app.run(`state.queue.length`), 0);
+  assert.equal(app.run(`state.aura`), null);
+  app.run(`state.queue = [{ id: 'q1' }, { id: 'q2' }]`);
+  await app.run(`skipTo(1)`);
+  app.run(`navigateTV('albums')`);
+  assert.deepEqual(app.bridgeCalls().map(c => c.url).filter(u => !u.endsWith('/paired')), ['http://bridge/api/aura/state']);
+  assert.equal(app.jellyfinCalls().length, 0);
+});
+
+test('a queue still loading for the previous TV does not replace the new TV\'s', async () => {
+  const app = loadApp();
+  app.select('aura:s2');
+  const pending = app.run(`refreshNowPlaying()`);
+  app.run(`state.target = state.sessions[0]; state.queue = [{ id: 'q1', title: 'Linked' }]`);
+  await pending;
+  assert.deepEqual(JSON.parse(app.run(`JSON.stringify(state.queue.map(q => q.title))`)), ['Linked']);
+});
+
+test('the link is looked up again after the bridge was unreachable at startup', async () => {
+  const app = loadApp();
+  app.run(`state.link = { address: '', deviceName: '' }`);
+  app.failPaired(true);
+  await app.run(`loadLink()`);
+  assert.equal(app.run(`state.link.address`), '');
+  app.failPaired(false);
+  app.select('aura:s1');
+  await app.run(`pollMirror()`);
+  await new Promise(r => setImmediate(r));
+  assert.equal(app.run(`state.link.address`), '192.168.1.50:8099');
+  app.calls.length = 0;
+  await app.run(`pollMirror()`);
+  assert.equal(app.bridgeCalls().filter(c => c.url.includes('/paired')).length, 0);
+});
+
+test('switching to the linked TV clears the D-pad warning and re-enables the Mirror chip', async () => {
+  const app = loadApp();
+  app.select('aura:s2');
+  await app.run(`sendKey('up')`);
+  app.run(`renderMirrorBtn()`);
+  assert.equal(app.run(`$('mirrorBtn').classList.contains('unavailable')`), true);
+  assert.match(app.run(`$('mirrorBtn').title`), /Living Room TV/);
+  app.run(`selectTarget('aura:s1')`);
+  assert.equal(app.run(`$('dpadMsg').textContent`), '');
+  assert.equal(app.run(`$('mirrorBtn').classList.contains('unavailable')`), false);
+});
+
+test('a jump that drops earlier tracks of a long queue says how many remain', async () => {
+  const app = loadApp();
+  app.select('aura:s2');
+  app.run(`state.queue = Array.from({ length: 200 }, (_, i) => ({ id: 'id' + i, title: '', artist: '' }))`);
+  await app.run(`skipTo(100)`);
+  assert.equal(new URL(app.jellyfinCalls()[0].url).searchParams.get('itemIds').split(',').length, 100);
+  assert.equal(app.run(`$('toast').textContent`), 'Queue trimmed to the next 100 tracks');
 });

@@ -205,11 +205,18 @@ function enterApp() {
 
 /* ---------------- targets ---------------- */
 
+// Retried from pollMirror until the bridge has answered once.
 async function loadLink() {
+  if (state.link.loading) return;
+  state.link.loading = true;
   try {
     const res = await bridgeFetch(`/api/aura/paired`);
-    if (res.ok) state.link.address = (await res.json()).link || '';
-  } catch { /* bridge unreachable — the link stays unidentified */ }
+    if (res.ok) {
+      state.link.address = (await res.json()).link || '';
+      state.link.loaded = true;
+    }
+  } catch { /* bridge unreachable — retried on the next mirror poll */ }
+  finally { state.link.loading = false; }
 }
 
 // Only the bridge's own TV can be reached over the mirror link; every other Aura
@@ -222,9 +229,10 @@ function targetIsLinked() {
   return targetRoute() === 'link';
 }
 
-// The D-pad and TV navigation exist only on the mirror link.
+// The D-pad, TV navigation, mirror and its queue exist only on the mirror link.
+// With nothing selected yet there is only the linked TV to talk to.
 function linkReachesTarget() {
-  return state.target?.kind !== 'aura' || targetIsLinked();
+  return !state.target || targetIsLinked();
 }
 
 function looksLikeEmulator(session) {
@@ -285,6 +293,7 @@ function renderTargetLabel() {
   if (!t) { el.textContent = 'no target'; el.classList.remove('live'); return; }
   el.textContent = `${t.kind === 'aura' ? 'Aura' : 'Cast'} · ${t.label}${t.emulator ? ' (emu)' : ''}`;
   el.classList.toggle('live', t.kind === 'aura');
+  renderMirrorBtn();
 }
 
 function selectTarget(key) {
@@ -297,6 +306,7 @@ function selectTarget(key) {
   state.queueIndex = 0;
   state.queueSig = '';
   state.mirrorSig = '';
+  $('dpadMsg').textContent = '';
   store.set('targetKey', key);
   renderTargetLabel();
   closeSheet('deviceSheet');
@@ -328,7 +338,7 @@ async function refreshNowPlaying() {
     const session = state.sessions.find(s => s.key === t.key);
     state.np = npFromSession(session?.raw);
     if (state.np) { state.repeat = state.np.repeat; state.shuffle = state.np.shuffle; }
-    if (!targetIsLinked()) await refreshJellyfinQueue(session?.raw);
+    if (!targetIsLinked()) await refreshJellyfinQueue(session?.raw, t.key);
     return;
   }
 
@@ -346,7 +356,7 @@ async function refreshNowPlaying() {
 // A TV other than the linked one: its queue comes from Jellyfin's session.
 const queueTitles = new Map();
 
-async function refreshJellyfinQueue(session) {
+async function refreshJellyfinQueue(session, key) {
   const { ids, index } = AuraRouting.queueFromSession(session);
   const missing = ids.filter(id => !queueTitles.has(id));
   // Batches of 100 ids keep the URL well under Jellyfin's request-line limit.
@@ -365,6 +375,8 @@ async function refreshJellyfinQueue(session) {
       break;
     }
   }
+  // The picker may have moved to another TV while the titles were loading.
+  if (state.target?.key !== key) return;
   state.queue = ids.map(id => ({ id, ...(queueTitles.get(id) || { title: '…', artist: '' }) }));
   state.queueIndex = index;
   renderQueue();
@@ -561,7 +573,7 @@ async function skipTo(index) {
   if (ids.length > MAX_PLAY_IDS) {
     ids = ids.slice(index, index + MAX_PLAY_IDS);
     start = 0;
-    if (index + MAX_PLAY_IDS < state.queue.length) toast(`Queue trimmed to the next ${MAX_PLAY_IDS} tracks`, 2500);
+    toast(`Queue trimmed to the next ${ids.length} tracks`, 2500);
   }
   if (!ids.length) return;
   await api(`/Sessions/${t.sessionId}/Playing?playCommand=PlayNow&itemIds=${ids.join(',')}&startIndex=${start}`, { method: 'POST' });
@@ -931,6 +943,7 @@ async function pollMirror() {
     if (state.unpaired) { state.unpaired = false; renderPair(); }
     state.deviceName = snapshot.deviceName || state.deviceName;
     state.link.deviceName = snapshot.deviceName || state.link.deviceName;
+    if (!state.link.loaded) loadLink();
     // The link always answers for its own TV; another selected TV keeps the
     // queue Jellyfin reports for it and is never mirrored from this snapshot.
     if (!linkReachesTarget()) return;
@@ -1181,14 +1194,23 @@ function renderMirrorBtn() {
   const btn = $('mirrorBtn');
   btn.classList.toggle('on', state.mirrorOn);
   btn.setAttribute('aria-pressed', String(state.mirrorOn));
-  btn.title = state.mirrorOn ? 'Mirroring the TV — tap to stop' : 'Mirror the TV';
+  const reachable = linkReachesTarget();
+  btn.classList.toggle('unavailable', !reachable);
+  btn.title = !reachable ? mirrorUnavailableMsg()
+    : state.mirrorOn ? 'Mirroring the TV — tap to stop' : 'Mirror the TV';
+}
+
+function mirrorUnavailableMsg() {
+  return `Mirroring only follows ${state.link.deviceName || 'the TV this bridge is paired with'}`;
 }
 
 $('mirrorBtn').addEventListener('click', () => {
   state.mirrorOn = !state.mirrorOn;
   store.set('mirrorOn', state.mirrorOn);
   renderMirrorBtn();
-  if (state.mirrorOn) {
+  if (state.mirrorOn && !linkReachesTarget()) {
+    toast(mirrorUnavailableMsg(), 2500);
+  } else if (state.mirrorOn) {
     toast('Mirroring the TV');
     pollMirror();
   } else {
