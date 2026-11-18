@@ -277,6 +277,7 @@ async function refreshTargets() {
   const all = [...state.sessions, ...state.castTargets];
   const remembered = store.get('targetKey');
   const keep = state.target && all.find(t => t.key === state.target.key);
+  const previousKey = state.target?.key;
   state.target = keep
     || (remembered && all.find(t => t.key === remembered))
     || state.sessions[0]
@@ -284,7 +285,22 @@ async function refreshTargets() {
     || state.castTargets[0]
     || null;
 
+  if (state.target?.key !== previousKey) {
+    clearTargetView();
+    renderQueue(true);
+  }
   renderTargetLabel();
+}
+
+// What was shown for the previous target; the next poll fills it for the new one.
+function clearTargetView() {
+  state.np = null;
+  state.aura = null;
+  state.queue = [];
+  state.queueIndex = 0;
+  state.queueSig = '';
+  state.mirrorSig = '';
+  $('dpadMsg').textContent = '';
 }
 
 function renderTargetLabel() {
@@ -300,13 +316,7 @@ function selectTarget(key) {
   const found = [...state.sessions, ...state.castTargets].find(t => t.key === key);
   if (!found) return;
   state.target = found;
-  state.np = null;
-  state.aura = null;
-  state.queue = [];
-  state.queueIndex = 0;
-  state.queueSig = '';
-  state.mirrorSig = '';
-  $('dpadMsg').textContent = '';
+  clearTargetView();
   store.set('targetKey', key);
   renderTargetLabel();
   closeSheet('deviceSheet');

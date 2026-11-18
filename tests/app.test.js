@@ -27,7 +27,10 @@ function loadApp() {
   const elements = new Map();
   let controlFails = false;
   let pairedFails = false;
+  const bodies = {};
   const respond = (url) => {
+    const override = Object.keys(bodies).find(part => url.includes(part));
+    if (override) return { ok: true, status: 200, json: async () => bodies[override], text: async () => '' };
     if (pairedFails && url.includes('/api/aura/paired')) throw new Error('bridge down');
     if (controlFails && url.includes('/api/aura/control')) return { ok: false, status: 502, text: async () => 'down' };
     const body = url.includes('/api/aura/state')
@@ -76,6 +79,7 @@ function loadApp() {
     calls, run,
     failControl: () => { controlFails = true; },
     failPaired: on => { pairedFails = on; },
+    respondWith: (urlPart, body) => { bodies[urlPart] = body; },
     select: key => { run(`state.target = state.sessions.find(s => s.key === '${key}'); state.np = { duration: 200 };`); calls.length = 0; },
     bridgeCalls: () => calls.filter(c => c.url.startsWith('http://bridge/api/aura/')),
     jellyfinCalls: () => calls.filter(c => c.url.startsWith('http://jf/')),
@@ -240,4 +244,17 @@ test('a jump that drops earlier tracks of a long queue says how many remain', as
   await app.run(`skipTo(100)`);
   assert.equal(new URL(app.jellyfinCalls()[0].url).searchParams.get('itemIds').split(',').length, 100);
   assert.equal(app.run(`$('toast').textContent`), 'Queue trimmed to the next 100 tracks');
+});
+
+test('falling back to a Cast target on its own clears the previous TV\'s queue', async () => {
+  const app = loadApp();
+  app.select('aura:s2');
+  await app.run(`refreshNowPlaying()`);
+  assert.equal(app.run(`state.queue.length`), 2);
+  app.respondWith('/Sessions', []);
+  app.respondWith('/api/targets', { targets: [{ name: 'Kitchen' }] });
+  await app.run(`refreshTargets()`);
+  assert.equal(app.run(`state.target.key`), 'cast:Kitchen');
+  assert.equal(app.run(`state.queue.length`), 0);
+  assert.equal(app.run(`state.np`), null);
 });
