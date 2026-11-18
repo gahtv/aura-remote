@@ -122,6 +122,7 @@ header {
 }
 
 .chip .ic { width: 15px; height: 15px; }
+.chip.unavailable { opacity: 0.45; }
 
 .chip.on {
   background: var(--amber);
