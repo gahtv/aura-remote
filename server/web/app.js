@@ -48,6 +48,8 @@ const state = {
   mirrorSig: '',
   queueSig: '',
   aura: null,
+  // The one TV the bridge's mirror link reaches: AURA_LINK and its /state name.
+  link: { address: '', deviceName: '' },
   unpaired: false,
   pairing: false,
   pairError: '',
@@ -194,7 +196,7 @@ async function logout() {
 function enterApp() {
   $('login').classList.add('hidden');
   $('main').classList.remove('hidden');
-  ensureBridgeSession();
+  ensureBridgeSession().then(loadLink);
   startPolling();
   loadLibrary();
   buildAtmosCatalog();
@@ -202,6 +204,28 @@ function enterApp() {
 }
 
 /* ---------------- targets ---------------- */
+
+async function loadLink() {
+  try {
+    const res = await bridgeFetch(`/api/aura/paired`);
+    if (res.ok) state.link.address = (await res.json()).link || '';
+  } catch { /* bridge unreachable — the link stays unidentified */ }
+}
+
+// Only the bridge's own TV can be reached over the mirror link; every other Aura
+// in the picker goes through Jellyfin.
+function targetRoute() {
+  return AuraRouting.routeFor(state.target, state.sessions.map(s => s.raw), state.link);
+}
+
+function targetIsLinked() {
+  return targetRoute() === 'link';
+}
+
+// The D-pad and TV navigation exist only on the mirror link.
+function linkReachesTarget() {
+  return state.target?.kind !== 'aura' || targetIsLinked();
+}
 
 function looksLikeEmulator(session) {
   const name = `${session.DeviceName || ''} ${session.Client || ''}`;
@@ -268,11 +292,18 @@ function selectTarget(key) {
   if (!found) return;
   state.target = found;
   state.np = null;
+  state.aura = null;
+  state.queue = [];
+  state.queueIndex = 0;
+  state.queueSig = '';
+  state.mirrorSig = '';
   store.set('targetKey', key);
   renderTargetLabel();
   closeSheet('deviceSheet');
   toast(`Using ${found.label}`);
+  renderQueue(true);
   tick();
+  pollMirror();
 }
 
 /* ---------------- now playing ---------------- */
@@ -297,6 +328,7 @@ async function refreshNowPlaying() {
     const session = state.sessions.find(s => s.key === t.key);
     state.np = npFromSession(session?.raw);
     if (state.np) { state.repeat = state.np.repeat; state.shuffle = state.np.shuffle; }
+    if (!targetIsLinked()) await refreshJellyfinQueue(session?.raw);
     return;
   }
 
@@ -309,6 +341,33 @@ async function refreshNowPlaying() {
           playing: s.playing, position: s.position_s || 0, duration: s.duration_s || 0 }
       : null;
   } catch { state.np = null; }
+}
+
+// A TV other than the linked one: its queue comes from Jellyfin's session.
+const queueTitles = new Map();
+
+async function refreshJellyfinQueue(session) {
+  const { ids, index } = AuraRouting.queueFromSession(session);
+  const missing = ids.filter(id => !queueTitles.has(id));
+  // Batches of 100 ids keep the URL well under Jellyfin's request-line limit.
+  for (let i = 0; i < missing.length; i += 100) {
+    const batch = missing.slice(i, i + 100);
+    try {
+      const res = await api(`/Items?Ids=${batch.join(',')}&UserId=${state.userId}`);
+      if (!res.ok) break;
+      const items = (await res.json()).Items || [];
+      items.forEach(it => queueTitles.set(it.Id, {
+        title: it.Name, artist: it.AlbumArtist || (it.Artists || [])[0] || '',
+      }));
+      batch.forEach(id => { if (!queueTitles.has(id)) queueTitles.set(id, { title: 'Unknown track', artist: '' }); });
+    } catch (e) {
+      if (e.message === 'unauthorized') throw e;
+      break;
+    }
+  }
+  state.queue = ids.map(id => ({ id, ...(queueTitles.get(id) || { title: '…', artist: '' }) }));
+  state.queueIndex = index;
+  renderQueue();
 }
 
 function renderNowPlaying() {
@@ -471,7 +530,9 @@ async function launchAura(manual = false) {
 
 /* ---------------- connect-style control ---------------- */
 
+// false when the selected TV is not the linked one, so callers fall back to Jellyfin.
 async function controlAura(action, extra = {}) {
+  if (!linkReachesTarget()) return false;
   try {
     const res = await bridgeFetch(`/api/aura/control`, {
       method: 'POST',
@@ -484,6 +545,20 @@ async function controlAura(action, extra = {}) {
   } catch {
     return false;
   }
+}
+
+async function skipTo(index) {
+  if (await controlAura('skip', { index })) return;
+  const t = state.target;
+  if (t?.kind !== 'aura') return;
+  // Jellyfin has no "jump within the queue": replay the same queue from there.
+  // Long queues are cut to start at the pick to keep the URL under server limits.
+  let ids = state.queue.map(q => q.id);
+  let start = index;
+  if (ids.length > 150) { ids = ids.slice(index); start = 0; }
+  if (!ids.length) return;
+  await api(`/Sessions/${t.sessionId}/Playing?playCommand=PlayNow&itemIds=${ids.join(',')}&startIndex=${start}`, { method: 'POST' });
+  setTimeout(tick, 600);
 }
 
 /* ---------------- transport ---------------- */
@@ -821,6 +896,12 @@ function renderDeviceList() {
 /* ---------------- remote: D-pad + mirror ---------------- */
 
 async function sendKey(key) {
+  if (!linkReachesTarget()) {
+    $('dpadMsg').textContent = state.link.deviceName
+      ? `The D-pad only reaches ${state.link.deviceName}, the TV this bridge is paired with.`
+      : 'The D-pad only reaches the TV this bridge is paired with.';
+    return;
+  }
   const res = await bridgeFetch(`/api/aura/input`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
@@ -842,6 +923,10 @@ async function pollMirror() {
     const snapshot = await res.json();
     if (state.unpaired) { state.unpaired = false; renderPair(); }
     state.deviceName = snapshot.deviceName || state.deviceName;
+    state.link.deviceName = snapshot.deviceName || state.link.deviceName;
+    // The link always answers for its own TV; another selected TV keeps the
+    // queue Jellyfin reports for it and is never mirrored from this snapshot.
+    if (!linkReachesTarget()) return;
     state.aura = snapshot;
     state.queue = snapshot.queue || [];
     state.queueIndex = snapshot.queueIndex || 0;
@@ -1001,7 +1086,7 @@ function stopMirror() {
 // Remote -> TV: only when mirroring, and never when the mirror is the one
 // moving the local view (that would bounce the two ends back and forth).
 function navigateTV(screen, itemId) {
-  if (!state.mirrorOn || state.mirrorApplying) return;
+  if (!state.mirrorOn || state.mirrorApplying || !linkReachesTarget()) return;
   bridgeFetch(`/api/aura/navigate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1138,7 +1223,7 @@ document.addEventListener('click', e => {
   if (track) { playItems([track.dataset.track]); return; }
 
   const queued = e.target.closest('[data-queue]');
-  if (queued) { controlAura('skip', { index: Number(queued.dataset.queue) }); return; }
+  if (queued) { skipTo(Number(queued.dataset.queue)); return; }
 
   if (e.target.classList.contains('sheet')) closeSheet(e.target.id);
 });

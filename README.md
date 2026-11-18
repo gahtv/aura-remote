@@ -19,7 +19,7 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 | **Lyrics** | A labelled **Lyrics** chip in Now Playing that fetches synced lyrics and follows the playhead. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
 | **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar; the Remote and Queue tabs are exempt so you can drive the TV while mirroring, and re-applying a screen the remote is already showing is a no-op, so lists keep their scroll position. |
 | **Cast fallback** | With no Aura running, tracks can be Cast to a TV or speaker through the bridge. |
-| **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. |
+| **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. Controls follow the pick: the bridge's `AURA_LINK` TV is driven over the mirror link, any other Aura through Jellyfin's remote control (transport, seek, shuffle, repeat and its Jellyfin queue; no D-pad or mirroring). |
 | **Launch** | Optional: start Aura if it is not running (needs ADB — see Limitations). |
 
 ## Architecture
@@ -137,6 +137,12 @@ adb -s emulator-5554 forward tcp:9099 tcp:8099
 
 The UI is plain HTML/CSS/JS with no build step, and the compose file bind-mounts `server/web`, so edits are
 live.
+
+Tests need only Node 18+ (no dependencies): they load the real `server/web` scripts against a stub DOM.
+
+```bash
+node --test tests/
+```
 
 ## Troubleshooting
 
