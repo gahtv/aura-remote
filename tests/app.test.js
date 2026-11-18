@@ -163,6 +163,14 @@ test('a jump in a long queue sends at most 150 tracks from the pick', async () =
   assert.equal(url.searchParams.get('startIndex'), '0');
 });
 
+test('a remembered TV that is not found yet is not shown the linked TV\'s mirror', async () => {
+  const app = loadApp();
+  app.run(`state.target = null; store.get = k => (k === 'targetKey' ? 'aura:s2' : null)`);
+  await app.run(`pollMirror()`);
+  assert.equal(app.run(`state.aura`), null);
+  assert.equal(app.run(`state.link.deviceName`), 'Living Room TV');
+});
+
 test('the link is identified from the bridge', async () => {
   const app = loadApp();
   app.run(`state.link = { address: '', deviceName: '' }`);

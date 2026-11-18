@@ -934,6 +934,8 @@ async function pollMirror() {
     // The link always answers for its own TV; another selected TV keeps the
     // queue Jellyfin reports for it and is never mirrored from this snapshot.
     if (!linkReachesTarget()) return;
+    // Until the picker has found the remembered TV, the snapshot may be another TV's.
+    if (!state.target && store.get('targetKey')) return;
     state.aura = snapshot;
     state.queue = snapshot.queue || [];
     state.queueIndex = snapshot.queueIndex || 0;
