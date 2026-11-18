@@ -48,6 +48,11 @@ test('a name match never overrides two different addresses', () => {
   assert.equal(isLinkedSession(other, [other], { address: 'tv.local:8099', deviceName: 'Android TV' }), true);
 });
 
+test('IPv6 spelled differently still matches by name', () => {
+  const tv = { DeviceName: 'Living Room TV', RemoteEndPoint: 'fe80::1' };
+  assert.equal(isLinkedSession(tv, [tv], { address: '[fe80:0:0:0:0:0:0:1]:8099', deviceName: 'Living Room TV' }), true);
+});
+
 test('duplicate sessions of the same TV still match by name', () => {
   const a = { DeviceName: 'Living Room TV', RemoteEndPoint: '192.168.1.50' };
   const stale = { DeviceName: 'Living Room TV', RemoteEndPoint: '192.168.1.50' };
