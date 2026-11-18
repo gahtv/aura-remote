@@ -547,15 +547,22 @@ async function controlAura(action, extra = {}) {
   }
 }
 
+const MAX_PLAY_IDS = 150;
+
 async function skipTo(index) {
   if (await controlAura('skip', { index })) return;
   const t = state.target;
-  if (t?.kind !== 'aura') return;
+  // The linked TV's queue is the mirror's, capped at 300: replaying it would drop the rest.
+  if (t?.kind !== 'aura' || targetIsLinked()) return;
   // Jellyfin has no "jump within the queue": replay the same queue from there.
-  // Long queues are cut to start at the pick to keep the URL under server limits.
+  // Long queues become the next MAX_PLAY_IDS tracks to keep the URL under server limits.
   let ids = state.queue.map(q => q.id);
   let start = index;
-  if (ids.length > 150) { ids = ids.slice(index); start = 0; }
+  if (ids.length > MAX_PLAY_IDS) {
+    ids = ids.slice(index, index + MAX_PLAY_IDS);
+    start = 0;
+    if (index + MAX_PLAY_IDS < state.queue.length) toast(`Queue trimmed to the next ${MAX_PLAY_IDS} tracks`, 2500);
+  }
   if (!ids.length) return;
   await api(`/Sessions/${t.sessionId}/Playing?playCommand=PlayNow&itemIds=${ids.join(',')}&startIndex=${start}`, { method: 'POST' });
   setTimeout(tick, 600);

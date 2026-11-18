@@ -25,7 +25,9 @@ function element() {
 function loadApp() {
   const calls = [];
   const elements = new Map();
+  let controlFails = false;
   const respond = (url) => {
+    if (controlFails && url.includes('/api/aura/control')) return { ok: false, status: 502, text: async () => 'down' };
     const body = url.includes('/api/aura/state')
       ? { deviceName: 'Living Room TV', queue: [{ id: 'q1', title: 'Linked', artist: '' }], queueIndex: 0 }
       : url.includes('/Items?') ? { Items: [{ Id: 'x1', Name: 'One' }, { Id: 'x2', Name: 'Two' }] }
@@ -70,6 +72,7 @@ function loadApp() {
   calls.length = 0;
   return {
     calls, run,
+    failControl: () => { controlFails = true; },
     select: key => { run(`state.target = state.sessions.find(s => s.key === '${key}'); state.np = { duration: 200 };`); calls.length = 0; },
     bridgeCalls: () => calls.filter(c => c.url.startsWith('http://bridge/api/aura/')),
     jellyfinCalls: () => calls.filter(c => c.url.startsWith('http://jf/')),
@@ -136,6 +139,28 @@ test('the linked TV keeps the mirror-link queue and skip', async () => {
   app.calls.length = 0;
   await app.run(`skipTo(0)`);
   assert.deepEqual(app.bridgeCalls().map(c => JSON.parse(c.body)), [{ action: 'skip', index: 0 }]);
+});
+
+test('a failed mirror skip on the linked TV does not replay its capped queue via Jellyfin', async () => {
+  const app = loadApp();
+  app.select('aura:s1');
+  await app.run(`pollMirror()`);
+  app.failControl();
+  app.calls.length = 0;
+  await app.run(`skipTo(0)`);
+  assert.equal(app.jellyfinCalls().length, 0);
+});
+
+test('a jump in a long queue sends at most 150 tracks from the pick', async () => {
+  const app = loadApp();
+  app.select('aura:s2');
+  app.run(`state.queue = Array.from({ length: 400 }, (_, i) => ({ id: 'id' + i, title: '', artist: '' }))`);
+  await app.run(`skipTo(10)`);
+  const url = new URL(app.jellyfinCalls()[0].url);
+  const ids = url.searchParams.get('itemIds').split(',');
+  assert.equal(ids.length, 150);
+  assert.equal(ids[0], 'id10');
+  assert.equal(url.searchParams.get('startIndex'), '0');
 });
 
 test('the link is identified from the bridge', async () => {
