@@ -27,8 +27,7 @@ test('an endpoint match alone identifies the linked TV', () => {
   assert.equal(isLinkedSession(bedroom, sessions, { address: '192.168.1.50:8099', deviceName: '' }), false);
 });
 
-test('a name match identifies the linked TV when Jellyfin sees another address', () => {
-  // Emulator over adb forward, or Jellyfin behind NAT: endpoints never match.
+test('a name match identifies the linked TV when the link is a loopback adb forward', () => {
   const emu = { DeviceName: 'sdk_gphone', RemoteEndPoint: '10.0.2.2' };
   assert.equal(isLinkedSession(emu, [emu], { address: '127.0.0.1:9099', deviceName: 'sdk_gphone' }), true);
 });
@@ -40,6 +39,13 @@ test('two TVs sharing a name are told apart by endpoint only', () => {
   assert.equal(isLinkedSession(a, [a, b], shared), true);
   assert.equal(isLinkedSession(b, [a, b], shared), false);
   assert.equal(isLinkedSession(b, [a, b], { address: 'tv.local:8099', deviceName: 'Android TV' }), false);
+});
+
+test('a name match never overrides two different addresses', () => {
+  // The linked TV is off; another TV with the same default name is still listed.
+  const other = { DeviceName: 'Android TV', RemoteEndPoint: '192.168.1.60' };
+  assert.equal(isLinkedSession(other, [other], { address: '192.168.1.50:8099', deviceName: 'Android TV' }), false);
+  assert.equal(isLinkedSession(other, [other], { address: 'tv.local:8099', deviceName: 'Android TV' }), true);
 });
 
 test('duplicate sessions of the same TV still match by name', () => {

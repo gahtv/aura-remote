@@ -19,6 +19,14 @@
     return mapped ? mapped[1] : s;
   }
 
+  function isIp(host) {
+    return /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':');
+  }
+
+  function isLoopback(host) {
+    return /^127\./.test(host) || host === '::1';
+  }
+
   // session: a Jellyfin /Sessions entry. sessions: every Aura session in the
   // picker. link: { address: AURA_LINK, deviceName: the link's /state deviceName }.
   function isLinkedSession(session, sessions, link) {
@@ -26,6 +34,10 @@
     const linkHost = hostOf(link.address);
     const endpoint = hostOf(session.RemoteEndPoint);
     if (linkHost && endpoint && linkHost === endpoint) return true;
+
+    // Two different real addresses are two different TVs, whatever their names.
+    // A loopback link (adb forward) says nothing about the TV's own address.
+    if (isIp(linkHost) && isIp(endpoint) && !isLoopback(linkHost)) return false;
 
     const name = link.deviceName;
     if (!name || session.DeviceName !== name) return false;
