@@ -62,8 +62,7 @@ const state = {
   lyricsTimer: null,
   // Where the playback clock was last anchored to a reported position.
   npClock: null,
-  sheetAlbumId: null,
-  sheetArtistId: null,
+  detailRequest: null,
   timer: null,
 };
 
@@ -139,10 +138,12 @@ async function api(path, { method = 'GET', body, server = state.server, token = 
   return res;
 }
 
-function imageUrl(item, size = 400) {
-  const tag = item?.ImageTags?.Primary;
+function imageUrl(item, size = 400, type = 'Primary') {
+  const tag = type === 'Backdrop' ? item?.BackdropImageTags?.[0] : item?.ImageTags?.[type];
   if (!item?.Id || !tag) return '';
-  return `${state.server}/Items/${item.Id}/Images/Primary?tag=${tag}&maxHeight=${size}&api_key=${state.token}`;
+  const imagePath = type === 'Backdrop' ? 'Backdrop/0' : type;
+  const dimension = type === 'Backdrop' || type === 'Banner' ? 'maxWidth' : 'maxHeight';
+  return `${state.server}/Items/${encodeURIComponent(item.Id)}/Images/${imagePath}?tag=${encodeURIComponent(tag)}&${dimension}=${size}&api_key=${encodeURIComponent(state.token)}`;
 }
 
 /* ---------------- auth ---------------- */
@@ -930,10 +931,28 @@ function renderBio(item) {
 }
 
 function openSheet(id) { $(id).classList.remove('hidden'); }
-function closeSheet(id) { $(id).classList.add('hidden'); }
+function closeSheet(id) {
+  $(id).classList.add('hidden');
+  if (id === 'detailSheet') state.detailRequest = null;
+}
+
+function setSheetImage(img, src, fallback = '') {
+  img.onerror = src ? () => setSheetImage(img, fallback) : null;
+  if (src) img.src = src;
+  else img.removeAttribute('src');
+  img.classList.toggle('hidden', !src);
+}
+
+function renderDetailArt(item, isArtist = false) {
+  setSheetImage($('sheetArt'), imageUrl(item, 200));
+  setSheetImage($('sheetLogo'), isArtist ? imageUrl(item, 96, 'Logo') : '');
+  const banner = isArtist ? imageUrl(item, 1440, 'Banner') : '';
+  const backdrop = isArtist ? imageUrl(item, 1440, 'Backdrop') : '';
+  setSheetImage($('sheetBanner'), banner || backdrop, banner ? backdrop : '');
+}
 
 async function openAlbum(albumId, fromMirror = false) {
-  state.sheetAlbumId = albumId;
+  const request = state.detailRequest = { screen: 'collection', id: albumId };
   if (!fromMirror) navigateTV('collection', albumId);
   const [metaRes, trackRes] = await Promise.all([
     api(`/Users/${state.userId}/Items/${albumId}`),
@@ -941,12 +960,11 @@ async function openAlbum(albumId, fromMirror = false) {
   ]);
   const album = metaRes.ok ? await metaRes.json() : {};
   const tracks = trackRes.ok ? (await trackRes.json()).Items || [] : [];
+  if (state.detailRequest !== request) return;
 
   $('sheetTitle').textContent = album.Name || '';
   $('sheetSub').textContent = [album.AlbumArtist || album.Artists?.join(', '), album.ProductionYear].filter(Boolean).join(' · ');
-  const src = imageUrl(album, 200);
-  $('sheetArt').src = src;
-  $('sheetArt').style.visibility = src ? 'visible' : 'hidden';
+  renderDetailArt(album);
   renderBio(album);
 
   const atmos = tracks.some(isAtmosTrack);
@@ -969,7 +987,7 @@ async function openAlbum(albumId, fromMirror = false) {
 }
 
 async function openArtist(artistId, fromMirror = false) {
-  state.sheetArtistId = artistId;
+  const request = state.detailRequest = { screen: 'artist', id: artistId };
   if (!fromMirror) navigateTV('artist', artistId);
   const [metaRes, albumRes, trackRes] = await Promise.all([
     api(`/Users/${state.userId}/Items/${artistId}`),
@@ -979,12 +997,11 @@ async function openArtist(artistId, fromMirror = false) {
   const artist = metaRes.ok ? await metaRes.json() : {};
   const albums = albumRes.ok ? (await albumRes.json()).Items || [] : [];
   const tracks = trackRes.ok ? (await trackRes.json()).Items || [] : [];
+  if (state.detailRequest !== request) return;
 
   $('sheetTitle').textContent = artist.Name || '';
   $('sheetSub').textContent = `${albums.length} albums · ${tracks.length} top tracks`;
-  const src = imageUrl(artist, 200);
-  $('sheetArt').src = src;
-  $('sheetArt').style.visibility = src ? 'visible' : 'hidden';
+  renderDetailArt(artist, true);
   renderBio(artist);
   $('sheetActions').innerHTML = '';
 
@@ -1160,10 +1177,11 @@ function applyMirror(m) {
     if (m.screen === 'nowplaying') {
       setView('now');
       setLyricsVisible(!!m.lyrics);
-    } else if (m.screen === 'collection' && m.itemId) {
-      if (m.itemId !== state.sheetAlbumId) openAlbum(m.itemId, true);
-    } else if (m.screen === 'artist' && m.itemId) {
-      if (m.itemId !== state.sheetArtistId) openArtist(m.itemId, true);
+    } else if (['collection', 'artist'].includes(m.screen) && m.itemId) {
+      if (state.detailRequest?.screen !== m.screen || state.detailRequest.id !== m.itemId) {
+        if (m.screen === 'artist') openArtist(m.itemId, true);
+        else openAlbum(m.itemId, true);
+      }
     } else if (['albums', 'artists', 'tracks'].includes(m.screen)) {
       setView('library');
       selectLibTab(m.screen);
