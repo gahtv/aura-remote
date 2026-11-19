@@ -28,10 +28,10 @@ function deferred() {
   return { promise, resolve };
 }
 
-function loadApp(intercept = () => null) {
+function loadApp(intercept = () => null, saved = {}) {
   const calls = [];
   const elements = new Map();
-  const storage = new Map();
+  const storage = new Map(Object.entries(saved).map(([key, value]) => [key, JSON.stringify(value)]));
   const timeouts = [];
   let controlFails = false;
   let pairedFails = false;
@@ -159,6 +159,21 @@ test('the delayed launch poll and visibility polling stay idle after sign-out', 
   await app.run('pollMirror()');
   assert.deepEqual(app.calls, []);
   assert.equal(app.run("state.autoLaunch && $('autoChk').checked"), true);
+});
+
+test('opening the remote again completes an interrupted bridge sign-out before showing Sign in', async () => {
+  const revoke = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/api/session/logout') ? revoke.promise : null,
+    { bridgeLogoutPending: true, auth: { token: 'old' } });
+  assert.equal(app.run("$('login').classList.contains('hidden')"), true);
+  assert.equal(app.run("store.get('auth')"), null);
+
+  revoke.resolve({ ok: true });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname), ['/api/session/logout']);
+  assert.equal(app.run("store.get('bridgeLogoutPending')"), null);
+  assert.equal(app.run("$('login').classList.contains('hidden')"), false);
 });
 
 test('sign-out closes lyrics so the next sign-in does not reuse a stopped highlight timer', async () => {

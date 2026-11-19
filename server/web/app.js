@@ -185,6 +185,7 @@ async function login() {
     state.token = data.AccessToken;
     state.userId = data.User.Id;
     state.userName = data.User.Name;
+    store.del('bridgeLogoutPending');
     store.set('lastServer', server);
     store.set('auth', { server, token: state.token, userId: state.userId, userName: state.userName });
     $('pass').value = '';
@@ -206,18 +207,25 @@ async function logout() {
   state.bridgeError = '';
   state.launching = false;
   state.launchError = '';
-  store.del('auth');
+  store.set('bridgeLogoutPending', true);
   clearInterval(state.timer);
   clearInterval(state.mirrorTimer);
   setLyricsVisible(false);
   $('main').classList.add('hidden');
+  await finishBridgeLogout();
+}
+
+async function finishBridgeLogout() {
+  store.del('auth');
+  $('login').classList.add('hidden');
   // A login already on the wire can still set the HttpOnly cookie.
   await bridgeLogin;
   // Drop the server-side session too: the cookie is HttpOnly and lives 30 days,
   // so clearing local storage alone leaves a live bridge session behind.
   try {
-    await fetch(`${state.bridge}/api/session/logout`, { method: 'POST' });
-  } catch { /* bridge unreachable — the cookie expires on its own */ }
+    const res = await fetch(`${state.bridge}/api/session/logout`, { method: 'POST', keepalive: true });
+    if (res.ok) store.del('bridgeLogoutPending');
+  } catch { /* retry on the next visit if the bridge is unreachable */ }
   $('login').classList.remove('hidden');
 }
 
@@ -1383,7 +1391,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) tick
 
 (function boot() {
   const saved = store.get('auth');
-  if (saved) {
+  if (store.get('bridgeLogoutPending')) {
+    finishBridgeLogout();
+  } else if (saved) {
     state.server = saved.server;
     state.token = saved.token;
     state.userId = saved.userId;
