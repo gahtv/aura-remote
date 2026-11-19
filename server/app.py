@@ -11,6 +11,7 @@ Cast discovery uses mDNS multicast; on a bridged Docker network that may be
 filtered, so STATIC_TARGETS lists hosts to probe directly.
 """
 
+import asyncio
 import json
 import os
 import re
@@ -22,6 +23,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
@@ -145,9 +147,11 @@ class Device:
     cast: object = field(repr=False)
 
 
-_lock = threading.Lock()
-_cache: list[Device] = []
-_cache_at: float = 0.0
+_discovery_lock = threading.Lock()
+_discovery_executor = ThreadPoolExecutor(max_workers=1)
+_discovery: Future[list[Device]] | None = None
+_cache: list[Device] | None = None
+_cache_at = 0.0
 
 
 def _static_devices() -> list[Device]:
@@ -174,42 +178,49 @@ def _static_devices() -> list[Device]:
     return found
 
 
-def _discover(force: bool = False) -> list[Device]:
+def _refresh_devices() -> list[Device]:
     global _cache, _cache_at
-    with _lock:
-        if not force and _cache and (time.time() - _cache_at) < DISCOVERY_TTL:
-            return _cache
+    try:
+        casts, browser = pychromecast.get_chromecasts(tries=2, retry_wait=1)
+        pychromecast.discovery.stop_discovery(browser)
+        devices = [
+            Device(
+                name=c.cast_info.friendly_name,
+                host=c.cast_info.host,
+                port=c.cast_info.port,
+                model=c.cast_info.model_name,
+                cast=c,
+            )
+            for c in casts
+        ]
+    except Exception:  # noqa: BLE001 - multicast unavailable in bridged mode
+        devices = []
 
-        devices: list[Device] = []
-        try:
-            casts, browser = pychromecast.get_chromecasts(tries=2, retry_wait=1)
-            pychromecast.discovery.stop_discovery(browser)
-            devices = [
-                Device(
-                    name=c.cast_info.friendly_name,
-                    host=c.cast_info.host,
-                    port=c.cast_info.port,
-                    model=c.cast_info.model_name,
-                    cast=c,
-                )
-                for c in casts
-            ]
-        except Exception:  # noqa: BLE001 - multicast unavailable in bridged mode
-            devices = []
+    known = {d.host for d in devices}
+    try:
+        devices += [d for d in _static_devices() if d.host not in known]
+    except Exception:  # noqa: BLE001
+        pass
 
-        known = {d.host for d in devices}
-        try:
-            devices += [d for d in _static_devices() if d.host not in known]
-        except Exception:  # noqa: BLE001
-            pass
-
+    with _discovery_lock:
         _cache = devices
-        _cache_at = time.time()
-        return _cache
+        _cache_at = time.monotonic()
+    return devices
+
+
+def _discover() -> tuple[list[Device] | None, Future[list[Device]] | None]:
+    global _discovery
+    with _discovery_lock:
+        if _cache is not None and time.monotonic() - _cache_at < DISCOVERY_TTL:
+            return _cache, None
+        if _discovery is None or _discovery.done():
+            _discovery = _discovery_executor.submit(_refresh_devices)
+        return _cache, _discovery
 
 
 def _find(name: str) -> Device:
-    devices = _discover()
+    cached, pending = _discover()
+    devices = pending.result() if pending is not None else cached or []
     exact = [d for d in devices if d.name.lower() == name.lower()]
     matches = exact or [d for d in devices if name.lower() in d.name.lower()]
     if not matches:
@@ -246,9 +257,12 @@ class SeekRequest(BaseModel):
 
 
 @app.get("/api/targets")
-def targets():
+async def targets():
+    devices, pending = _discover()
+    if devices is None and pending is not None:
+        devices = await asyncio.shield(asyncio.wrap_future(pending))
     out = []
-    for d in _discover():
+    for d in devices or []:
         out.append({"name": d.name, "model": d.model, "host": d.host})
     out.sort(key=lambda d: d["name"])
     return {"targets": out}
@@ -436,7 +450,7 @@ def config():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "devices": len(_cache)}
+    return {"ok": True, "devices": len(_cache or [])}
 
 
 # ---------------- Android TV surface (ADB) ----------------
