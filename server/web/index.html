@@ -33,6 +33,14 @@
   </div>
 
   <button id="loginBtn" class="btn primary">Sign in</button>
+  <button id="quickConnectBtn" class="btn">Use Quick Connect</button>
+  <div id="quickConnectPanel" class="hidden">
+    <div aria-live="polite" aria-atomic="true">
+      <div id="quickConnectCode" aria-label="Quick Connect code"></div>
+      <p>In Jellyfin on a signed-in device, open your profile → Quick Connect and enter this code.</p>
+    </div>
+    <button id="quickConnectCancel" class="btn">Cancel</button>
+  </div>
   <div id="loginError" role="alert"></div>
   </div>
 </div>
