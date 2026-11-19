@@ -103,6 +103,7 @@ main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 28px 20px calc(1
 .albums { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 24px 16px; margin-top: 16px; }
 .album { border-radius: var(--radius-card); }
 .album img { border-radius: var(--radius-card); transition: transform var(--motion); }
+.album-art-placeholder { width: 100%; aspect-ratio: 1; display: grid; place-items: center; border-radius: var(--radius-card); background: var(--card-hi); color: var(--amber); font-size: 48px; }
 .album .t { margin-top: 10px; font-size: 14px; }
 .row { gap: 14px; padding: 16px 12px; min-height: 64px; border-radius: var(--radius-card); }
 .row .n div:first-child { font-weight: 500; }
