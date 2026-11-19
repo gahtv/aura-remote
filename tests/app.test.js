@@ -23,9 +23,17 @@ function element() {
   };
 }
 
-function loadApp(options = {}) {
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function loadApp(intercept = () => null, saved = {}, options = {}) {
   const calls = [];
   const elements = new Map();
+  const storage = new Map(Object.entries(saved).map(([key, value]) => [key, JSON.stringify(value)]));
+  const timeouts = [];
   let controlFails = false;
   let pairedFails = false;
   const bodies = {};
@@ -45,9 +53,18 @@ function loadApp(options = {}) {
     console,
     AbortController,
     addEventListener() {},
-    fetch: async (url, opts = {}) => { calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body }); return options.fetch ? options.fetch(String(url), opts) : respond(String(url)); },
-    setTimeout: options.setTimeout || (() => 0), clearTimeout: options.clearTimeout || (() => {}), setInterval: () => 0, clearInterval() {},
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    fetch: async (url, opts = {}) => {
+      const call = { url: String(url), method: opts.method || 'GET', body: opts.body };
+      calls.push(call);
+      return intercept(call) ?? respond(call.url);
+    },
+    setTimeout: options.setTimeout || ((fn, delay) => timeouts.push({ fn, delay })),
+    clearTimeout: options.clearTimeout || (() => {}), setInterval: () => 0, clearInterval() {},
+    localStorage: {
+      getItem: key => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: key => storage.delete(key),
+    },
     location: { origin: 'http://bridge' },
     navigator: { platform: 'test' },
     confirm: () => true,
@@ -79,7 +96,7 @@ function loadApp(options = {}) {
   `);
   calls.length = 0;
   return {
-    calls, run,
+    calls, run, timeouts,
     failControl: () => { controlFails = true; },
     failPaired: on => { pairedFails = on; },
     respondWith: (urlPart, body) => { bodies[urlPart] = body; },
@@ -93,10 +110,7 @@ function quickConnectApp({ enabled = true, status = 200 } = {}) {
   const timers = new Map();
   let nextTimer = 0;
   let polls = 0;
-  const app = loadApp({
-    setTimeout: (fn, ms) => { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
-    clearTimeout: id => timers.delete(id),
-    fetch: async url => ({
+  const app = loadApp(async ({ url }) => ({
       ok: !url.includes('/Connect?') || status === 200,
       status: url.includes('/Connect?') ? status : 200,
       json: async () => url.endsWith('/Enabled') ? enabled
@@ -104,7 +118,9 @@ function quickConnectApp({ enabled = true, status = 200 } = {}) {
         : url.includes('/Connect?') ? { Authenticated: ++polls > 1 }
         : url.endsWith('/AuthenticateWithQuickConnect') ? { AccessToken: 'qc-token', User: { Id: 'qc-user', Name: 'Admin' } }
         : {},
-    }),
+    }), {}, {
+    setTimeout: (fn, ms) => { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
+    clearTimeout: id => timers.delete(id),
   });
   app.run(`$('server').value = ' http://jf/ '; startPolling = loadLibrary = buildAtmosCatalog = startMirror = loadLink = () => {};`);
   app.tick = async ms => {
@@ -163,9 +179,7 @@ test('cancel stops Quick Connect polling', async () => {
 
 test('pending password login excludes both sign-in methods and cancellation cannot enable them', async () => {
   let resolvePassword;
-  const app = loadApp({
-    fetch: () => new Promise(resolve => { resolvePassword = resolve; }),
-  });
+  const app = loadApp(() => new Promise(resolve => { resolvePassword = resolve; }));
   app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';`);
   const pending = app.run('login()');
   app.run('cancelQuickConnect()');
@@ -183,9 +197,7 @@ test('pending password login excludes both sign-in methods and cancellation cann
 
 test('Quick Connect excludes password login and ignores a cancelled late response', async () => {
   let resolveEnabled;
-  const app = loadApp({
-    fetch: () => new Promise(resolve => { resolveEnabled = resolve; }),
-  });
+  const app = loadApp(() => new Promise(resolve => { resolveEnabled = resolve; }));
   app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';`);
   const pending = app.run('startQuickConnect()');
   await app.run('login()');
@@ -199,9 +211,7 @@ test('Quick Connect excludes password login and ignores a cancelled late respons
 
 test('a password response after leaving login cannot replace the active account', async () => {
   let resolvePassword;
-  const app = loadApp({
-    fetch: () => new Promise(resolve => { resolvePassword = resolve; }),
-  });
+  const app = loadApp(() => new Promise(resolve => { resolvePassword = resolve; }));
   app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';
     ensureBridgeSession = async () => true;
     startPolling = loadLibrary = buildAtmosCatalog = startMirror = loadLink = () => {};`);
@@ -229,6 +239,109 @@ test('Quick Connect expires after five minutes', async () => {
   await app.tick(300000);
   assert.match(app.run(`$('loginError').textContent`), /expired/);
   assert.equal(await app.tick(3000), false);
+});
+
+test('an auto-launch 401 arriving after sign-out cannot reopen the bridge session', async () => {
+  const launch = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/api/launch') ? launch.promise : null);
+  assert.equal(app.run('state.autoLaunch'), true);
+  const pendingLaunch = app.run('launchAura()');
+
+  await app.run('logout()');
+  launch.resolve({ ok: false, status: 401, text: async () => 'bridge login required' });
+  await pendingLaunch;
+
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname), ['/api/launch', '/api/session/logout']);
+  assert.equal(app.run('state.bridgeReady'), false);
+});
+
+test('sign-out revokes the cookie from an already pending bridge login', async () => {
+  const login = deferred();
+  let authenticated = false;
+  const app = loadApp(({ url }) => {
+    if (url.endsWith('/api/session/login')) {
+      return login.promise.then(() => {
+        authenticated = true;
+        return { ok: true, status: 200 };
+      });
+    }
+    if (url.endsWith('/api/session/logout')) authenticated = false;
+    if (url.endsWith('/api/launch')) return { ok: false, status: 401 };
+  });
+  app.run("store.set('auth', { token: state.token })");
+  const pendingLaunch = app.run('launchAura()');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.calls.at(-1).url, 'http://bridge/api/session/login');
+
+  const signingOut = app.run('logout()');
+  assert.equal(app.run('state.token'), '');
+  assert.equal(app.run("store.get('auth')"), null);
+  login.resolve();
+  await Promise.all([signingOut, pendingLaunch]);
+
+  assert.equal(authenticated, false);
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname),
+    ['/api/launch', '/api/session/login', '/api/session/logout']);
+});
+
+test('the delayed launch poll and visibility polling stay idle after sign-out', async () => {
+  const app = loadApp();
+  await app.run('launchAura()');
+  const retry = app.timeouts.find(timer => timer.delay === 3000);
+  assert.ok(retry);
+  await app.run('logout()');
+  app.calls.length = 0;
+
+  await retry.fn();
+  await app.run('tick()');
+  await app.run('pollMirror()');
+  assert.deepEqual(app.calls, []);
+  assert.equal(app.run("state.autoLaunch && $('autoChk').checked"), true);
+});
+
+test('opening the remote again completes an interrupted bridge sign-out before showing Sign in', async () => {
+  const revoke = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/api/session/logout') ? revoke.promise : null,
+    { bridgeLogoutPending: true, auth: { token: 'old' } });
+  assert.equal(app.run("$('login').classList.contains('hidden')"), true);
+  assert.equal(app.run("store.get('auth')"), null);
+
+  revoke.resolve({ ok: true });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname), ['/api/session/logout']);
+  assert.equal(app.run("store.get('bridgeLogoutPending')"), null);
+  assert.equal(app.run("$('login').classList.contains('hidden')"), false);
+});
+
+test('sign-out closes lyrics so the next sign-in does not reuse a stopped highlight timer', async () => {
+  const app = loadApp();
+  await app.run('setLyricsVisible(true)');
+  await app.run('logout()');
+  assert.equal(app.run("!state.lyricsOn && $('lyricsBox').classList.contains('hidden')"), true);
+  assert.equal(app.run('state.lyricsTimer'), null);
+});
+
+test('album grids preserve working covers and replace missing artwork without empty image URLs', async () => {
+  const app = loadApp();
+  const albums = [
+    { Id: 'missing', Name: 'No cover', Type: 'MusicAlbum' },
+    { Id: 'covered', Name: 'With cover', Type: 'MusicAlbum', ImageTags: { Primary: 'cover-tag' } },
+  ];
+  const check = html => {
+    assert.match(html, /data-album="missing"/);
+    assert.match(html, /class="album-art-placeholder" aria-hidden="true"/);
+    assert.match(html, /data-album="covered"/);
+    assert.match(html, /src="http:\/\/jf\/Items\/covered\/Images\/Primary\?tag=cover-tag/);
+    assert.doesNotMatch(html, /<img[^>]+src=""/);
+  };
+  app.run(`renderAlbumGrid(${JSON.stringify(albums)})`);
+  check(app.run(`$('libraryBody').innerHTML`));
+  app.run(`renderSearch(${JSON.stringify(albums)})`);
+  check(app.run(`$('libraryBody').innerHTML`));
+  app.respondWith('AlbumArtistIds=', { Items: albums });
+  await app.run(`openArtist('artist', true)`);
+  check(app.run(`$('sheetList').innerHTML`));
 });
 
 test('transport for the linked TV goes over the mirror link', async () => {

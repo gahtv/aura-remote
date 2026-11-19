@@ -63,3 +63,8 @@ test('karaoke spans rebuild the line text with or without spaces in the tokens',
   const mismatch = { start: 1, text: 'Hello, world!', words: [{ start: 1, text: 'Hullo' }] };
   assert.deepEqual(L.karaokeSpans(mismatch, 0), [{ text: 'Hello, world!', sung: false }]);
 });
+
+test('TTML relative word times shift even when a later word passes the line start', () => {
+  const [line] = L.parseTtml('<tt><body><p begin="1s"><span begin="0s">A</span> <span begin="2s">B</span></p></body></tt>');
+  assert.deepEqual(line.words.map(w => w.start), [1, 3]);
+});
