@@ -6,6 +6,13 @@ is the endpoint that owns playback, the phone is a controller that reads its sta
 
 No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 
+## Status
+
+Version **0.2.0**, pre-release, built for one household on a trusted LAN. Works with Aura
+**v0.2.0-alpha.3 or later** (the first release with the mirror link and on-TV pairing); the latest is
+v0.5.0-alpha.1. What is next for both apps is in Aura's [roadmap](https://github.com/gahtv/Aura/blob/main/docs/ROADMAP.md):
+retiring ADB and replacing polling with live state.
+
 ---
 
 ## What it does
@@ -18,7 +25,7 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 | **Transport** | Play/pause/next/previous/seek, repeat and shuffle — semantic commands, not key presses. |
 | **Lyrics** | A labelled **Lyrics** chip in Now Playing that fetches synced lyrics and follows the playhead. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
 | **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar; the Remote and Queue tabs are exempt so you can drive the TV while mirroring, and re-applying a screen the remote is already showing is a no-op, so lists keep their scroll position. |
-| **Cast fallback** | With no Aura running, tracks can be Cast to a TV or speaker through the bridge. |
+| **Cast fallback** | Pick a Cast TV or speaker in the device picker and the bridge plays to it: the first track of what you pick (Cast has no queue here), with play/pause, stop and seek. The picker falls back to Cast on its own when no Aura session is found. |
 | **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. Controls follow the pick: the bridge's `AURA_LINK` TV is driven over the mirror link, any other Aura through Jellyfin's remote control (transport, seek, shuffle, repeat and its Jellyfin queue; no D-pad or mirroring). |
 | **Launch** | Optional: start Aura if it is not running (needs ADB — see Limitations). |
 
@@ -41,13 +48,18 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
   `Access-Control-Allow-Origin: *`). It uses the bridge for everything a browser cannot do: the
   authenticated Aura link, Cast, and optional ADB.
 - **The bridge holds two secrets the browser never sees**: the Aura pairing token and its own session store.
-- **Aura serves a mirror link** on port 8099 while it is in the foreground — see [docs/PROTOCOL.md](docs/PROTOCOL.md).
+  It calls Jellyfin only once per sign-in, to check the browser's token (`/Users/Me`) before issuing a session.
+- **Controls follow the device picker.** Only the `AURA_LINK` TV is reached over the mirror link (matched by
+  address, then by device name); any other Aura session is driven through Jellyfin's remote-control API, and
+  Cast targets through the bridge.
+- **Aura serves a mirror link** on port 8099 once it has been opened — see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## Requirements
 
-- **Aura** built with the mirror link (`ui/MirrorLink.kt` in the Aura repo). Without it the remote still
-  browses the library and can Cast, but queue, transport and mirroring stay dark.
-- **Jellyfin** 10.9+ (12.x tested), reachable from both the bridge and the browser.
+- **Aura** v0.2.0-alpha.3 or later, which serves the mirror link (`remote/MirrorServer.kt` in the Aura
+  repo). Without it the remote still browses the library, controls Aura through Jellyfin and can Cast, but
+  the D-pad and mirroring stay dark.
+- **Jellyfin** 10.9+ (10.10 tested), reachable from both the bridge and the browser.
 - **Docker** with compose, on a machine that can reach the TV on your LAN.
 
 ## Quick start
@@ -76,8 +88,10 @@ available).
 | `STATIC_TARGETS` | no | Cast hosts to probe when mDNS is filtered (bridged Docker). |
 | `BRIDGE_PORT` | no | Host port for the UI/API (default `8100`). |
 | `AURA_TOKEN_FILE` | no | Where the pairing token is stored (default `/data/aura_token`). |
+| `AURA_TOKEN` | no | A pairing token to use instead of the file (skips pairing; not saved). |
+| `AURA_ACTIVITY` | no | Activity `/api/launch` starts (default `com.hans.aura/.MainActivity`). |
 | `SESSIONS_FILE` | no | Where bridge sessions are stored (default `/data/sessions.json`). |
-| `MIRROR_WIDTH` / `MIRROR_QUALITY` | no | Screenshot-fallback size (`960`, `70`). |
+| `MIRROR_WIDTH` / `MIRROR_QUALITY` | no | JPEG size and quality for the deprecated `/api/screen` (`960`, `70`). |
 
 ## Security model
 
@@ -113,10 +127,11 @@ plain HTTP, protected only by the token.
 | GET | `/api/aura/state` | Aura's screen, playback and queue. |
 | POST | `/api/aura/control` | `{action}` — play/pause/next/prev/seek/skip/shuffle/repeat. |
 | POST | `/api/aura/navigate` | `{screen, itemId}` — move the TV. |
-| POST | `/api/aura/input` | `{key}` — D-pad, dispatched inside the app. |
-| GET / POST | `/api/aura/paired`, `/api/aura/pair` | Pairing status and request. |
+| POST | `/api/aura/input` | `{key}` — `up`/`down`/`left`/`right`/`center`/`back`/`home`/`playpause`, dispatched inside the app. |
+| GET | `/api/aura/paired` | Whether the bridge holds a pairing token, and its `AURA_LINK`. |
+| POST | `/api/aura/pair` | `{name}` — asks the TV; blocks until someone answers the prompt (up to 90 s). |
 | GET | `/api/targets` | Cast targets. |
-| POST | `/api/load`, `/api/transport`, `/api/seek` | Cast playback. |
+| POST | `/api/load`, `/api/transport`, `/api/seek`, `/api/volume` | Cast playback (`/api/volume` is API-only; the UI has no volume control). |
 | GET | `/api/status?device=` | Now playing on a Cast target. |
 | POST | `/api/launch` | Start Aura (requires `ADB_SERIAL`). |
 | GET | `/api/tvstate`, `/api/screen`, `/api/key`, `/api/device` | **Deprecated.** Accessibility-tree dump, JPEG frame, key injection and foreground window — the ADB mirroring path, replaced by `/api/aura/*`. Kept working for existing scripts; `/api/launch` is the only ADB call the UI still makes. |
@@ -125,7 +140,7 @@ plain HTTP, protected only by the token.
 
 ```bash
 cd server
-python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+python3.12 -m venv .venv && ./.venv/bin/pip install -r requirements.txt   # pychromecast 14 needs Python 3.11+
 AURA_LINK=127.0.0.1:9099 ./.venv/bin/uvicorn app:app --port 8098
 ```
 
@@ -139,9 +154,10 @@ The UI is plain HTML/CSS/JS with no build step, and the compose file bind-mounts
 live.
 
 Tests need only Node 18+ (no dependencies): they load the real `server/web` scripts against a stub DOM.
+The bridge itself has no tests yet, and there is no CI.
 
 ```bash
-node --test tests/
+node --test tests/*.test.js
 ```
 
 ## Troubleshooting
@@ -149,7 +165,9 @@ node --test tests/
 | Symptom | Cause |
 |---|---|
 | `AURA_LINK is not configured` | `.env` has no `AURA_LINK`. |
-| `Aura mirror link unreachable` | Aura is not in the foreground, or the installed build predates the mirror link. |
+| `Aura mirror link unreachable` | Aura has not been opened since the TV started (or Android stopped it), or the build predates the mirror link. With `HTTP Error 401` in the message, the TV no longer accepts the bridge's token: pair again. |
+| `This remote isn't paired with the TV yet` | Press **Pair with TV**. Aura keeps one token, so pairing another bridge with the same TV unpairs this one. |
+| D-pad says it only reaches one TV | The picked Aura is not the `AURA_LINK` TV; pick that TV, or point `AURA_LINK` at the other one. |
 | `bridge login required` | Session cookie expired, or `ALLOWED_SERVERS` does not match the URL you signed in with. |
 | `the TV is showing an ADB authorization prompt` | First auto-launch; approve on the TV once, the key persists in `adb-keys/`. |
 | Cast target missing | mDNS filtered; add the host to `STATIC_TARGETS`. |
@@ -158,6 +176,9 @@ node --test tests/
 ## Limitations
 
 - Single-user: any bridge session can control the TV.
+- One linked TV per bridge (`AURA_LINK`), and one paired bridge per TV. Other Aura TVs get Jellyfin remote
+  control only: no D-pad, mirroring, or exact queue jumps.
+- Cast plays one track at a time; there is no Cast queue.
 - Auto-launch is the only ADB-dependent feature; replacing it with the Android TV Remote v2 protocol
   (PIN pairing) is the obvious next step.
 - The queue is a 2 s poll, not a live subscription.

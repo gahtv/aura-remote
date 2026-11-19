@@ -1,17 +1,19 @@
 # The Aura mirror-link protocol
 
 This is the contract between the bridge and the TV app. It is implemented server-side by Aura
-(`ui/MirrorLink.kt`, in the [Aura repo](https://github.com/gahtv/Aura)) and consumed here by
-`server/app.py`.
+(`remote/MirrorServer.kt`, behind the `ui/MirrorLink.kt` facade, in the
+[Aura repo](https://github.com/gahtv/Aura)) and consumed here by `server/app.py`. Every Aura release since
+v0.2.0-alpha.3 speaks it as described here.
 
-Aura serves it on **port 8099** while it is in the foreground. When Aura is closed, nothing listens — that
-absence is also how a client knows the app is not running.
+Aura starts serving it on **port 8099** when its activity is created and keeps listening for as long as the
+app's process lives. Before Aura is opened, or after Android stops it, nothing listens — that absence is
+also how a client knows the app is not running.
 
 ## Why a link at all
 
 A browser can drive Jellyfin, but it cannot ask an Android app "which screen are you on?" or "pause the
 thing you are playing". The link answers both, and it is deliberately tiny: a hand-rolled HTTP/1.0 server
-with four endpoints and a pairing gate.
+with five endpoints, a health check and a pairing gate.
 
 ## Endpoints
 
@@ -38,16 +40,19 @@ with four endpoints and a pairing gate.
 ```
 
 - `screen` is one of `home`, `artists`, `albums`, `tracks`, `playlists`, `search`, `settings`,
-  `nowplaying`, `queue`, `collection`, `artist`.
-- `itemId` is set only for `collection` and `artist`.
+  `nowplaying`, `queue`, `collection`, `artist`. Aura's genre screens publish as `albums`.
+- `itemId` is set only for `collection` and `artist`. `title` is currently always `null`.
+- With no player bound yet, `playing` is `false`, the positions are `0` and the `track*` fields are `null`.
 - `lyrics` is true when Now Playing is showing lyrics rather than artwork — this is what lets a remote
   mirror the lyrics view exactly when the TV does.
 - `repeat`: `0` none, `1` one, `2` all. `queue` is capped at 300 entries.
 
 ### `POST /navigate?screen=<name>&itemId=<id>`
 
-Moves the TV. `screen` uses the same vocabulary as above; `itemId` is required for `collection`/`artist`.
-Returns `204`.
+Moves the TV. `screen` uses the same vocabulary as above (default `home`); `itemId` is required for
+`collection`/`artist`, which Aura fetches from Jellyfin before jumping. Library tabs, `search` and `settings`
+replace the back stack; `nowplaying` and `queue` push onto it. Always returns `204`: an unknown screen, or an
+item screen without a valid `itemId`, is ignored.
 
 ### `POST /control?action=<action>[&params]`
 
@@ -62,19 +67,23 @@ Semantic playback commands — the Connect-style half. Actions:
 | `shuffle` | `on=true\|false` | Shuffle |
 | `repeat` | `mode=0\|1\|2` | Repeat mode |
 
-All are applied on Aura's main thread. Returns `204` on success, `400` for an unknown action.
+All are queued onto Aura's main thread, so `204` means accepted, not yet applied. Returns `400` for an
+unknown action or when no player is bound yet.
 
 ### `POST /input?key=<key>`
 
 `up`, `down`, `left`, `right`, `select`, `back`, `playpause`, `home`. Aura dispatches these as `KeyEvent`s
 **inside its own process** — no ADB, no USB debugging. `home` means Aura's Home screen, not the Android
-launcher.
+launcher. Any other key, or no Aura activity to dispatch into, returns `400`. The bridge's `/api/aura/input`
+takes `center` for the middle D-pad button and sends it as `select`.
 
 ### `POST /pair/request?name=<device name>`
 
 Returns `{"token": "...", "device": "..."}` after someone approves the prompt on the TV, `403` if they
 deny, press BACK, or ignore it for 90 seconds. The token is what `/state`, `/control`, `/navigate` and
 `/input` expect in the `X-Aura-Token` header; `/health` and `/pair/request` are the only open endpoints.
+Without a valid token they answer `401` (`{"error":"unauthorized"}`). Aura keeps a single token: approving a
+new request replaces it, so the previously paired client starts getting `401`. Unknown paths return `404`.
 
 ### `GET /health`
 

@@ -1,13 +1,14 @@
 """
-Aura Remote — cast bridge.
+Aura Remote — the LAN bridge behind the PWA.
 
-The browser can drive Aura directly (Jellyfin's remote-control protocol, CORS is
-open). What a browser cannot do is talk Cast, especially on iOS. This service
-does that part: it discovers Cast targets, loads a URL onto one, and reports
-status. The PWA calls it only when no Aura session is available.
+The browser talks to Jellyfin directly for sign-in and the library. This
+service does what a browser cannot: it holds the Aura pairing token and proxies
+Aura's mirror link (state, navigation, transport, in-app input), drives Cast
+targets, issues HttpOnly bridge sessions against a Jellyfin token, and can
+start Aura over ADB. It also serves the PWA itself from web/.
 
-Runs on the LAN next to the TVs — pychromecast needs multicast, so the container
-uses host networking.
+Cast discovery uses mDNS multicast; on a bridged Docker network that may be
+filtered, so STATIC_TARGETS lists hosts to probe directly.
 """
 
 import json
@@ -126,7 +127,7 @@ def _aura_request(path: str, method: str = "GET", timeout: float = 4.0):
 AURA_ACTIVITY = os.environ.get("AURA_ACTIVITY", "com.hans.aura/.MainActivity")
 ADB_TIMEOUT = 12
 
-app = FastAPI(title="Aura Remote Bridge", version="0.1.0")
+app = FastAPI(title="Aura Remote Bridge", version=BRIDGE_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -466,11 +467,16 @@ class KeyRequest(BaseModel):
                  "playpause", "next", "prev", "wake"]
 
 
+# Where the mirror link names a key differently from the ADB key codes above.
+AURA_INPUT_KEYS = {"center": "select"}
+
+
 @app.post("/api/aura/input")
 def aura_input(req: "KeyRequest"):
     """D-pad etc. dispatched inside the running app — no ADB, no dev options."""
     try:
-        _aura_request(f"/input?{urllib.parse.urlencode({'key': req.key})}", method="POST").read()
+        key = AURA_INPUT_KEYS.get(req.key, req.key)
+        _aura_request(f"/input?{urllib.parse.urlencode({'key': key})}", method="POST").read()
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
