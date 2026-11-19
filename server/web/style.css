@@ -558,6 +558,8 @@ h2 {
   -webkit-box-orient: vertical;
   overflow: hidden;
   cursor: pointer;
+  /* The sheet is a flex column: without this a long list squeezes the clamp mid-line. */
+  flex-shrink: 0;
 }
 .bio.open { display: block; max-height: 30vh; overflow-y: auto; }
 
