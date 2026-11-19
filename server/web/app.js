@@ -801,7 +801,7 @@ async function playItems(ids) {
   } else {
     const params = new URLSearchParams({
       UserId: state.userId, DeviceId: state.deviceId, Container: 'mp4', AudioCodec: 'copy',
-      TranscodingContainer: 'mp4', TranscodingProtocol: 'http', api_key: state.token,
+      TranscodingContainer: 'mp4', TranscodingProtocol: 'http', ApiKey: state.token,
     });
     const res = await bridgeFetch(`/api/load`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
