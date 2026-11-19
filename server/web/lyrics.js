@@ -130,8 +130,8 @@
       if (depth === lineDepth) {
         const line = normalize(text);
         const start = lineStart ?? words[0]?.start ?? null;
-        // Word times relative to their paragraph.
-        if (lineStart !== null && words.length && words.every(w => w.start < lineStart)) {
+        // Word times relative to their paragraph: an absolute word cannot start before its line.
+        if (lineStart !== null && words.length && words[0].start < lineStart) {
           words = words.map(w => ({ start: w.start + lineStart, text: w.text }));
         }
         if (line) lines.push({ start: start ?? 0, text: line, synced: start !== null, words, voice: voiceOf(lineAgent) });
