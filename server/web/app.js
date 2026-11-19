@@ -771,11 +771,20 @@ async function loadLibrary() {
   }
 }
 
+// Missing Jellyfin artwork is normal: reserve the same square without an
+// empty img src (which browsers render as a broken image or request as HTML).
+function albumArtwork(album, size) {
+  const src = imageUrl(album, size);
+  return src
+    ? `<img loading="lazy" src="${src}" alt="">`
+    : '<div class="album-art-placeholder" aria-hidden="true">♪</div>';
+}
+
 function renderAlbumGrid(items) {
   if (!items.length) { $('libraryBody').innerHTML = '<div class="muted small">Nothing here.</div>'; return; }
   $('libraryBody').innerHTML = `<div class="albums">${items.map(a => `
     <div class="album" data-album="${a.Id}">
-      <img loading="lazy" src="${imageUrl(a, 320)}" alt="">
+      ${albumArtwork(a, 320)}
       <div class="t">${escapeHtml(a.Name)}</div>
       <div class="s">${escapeHtml(a.AlbumArtist || a.Artists?.join(', ') || '')}</div>
       <div data-album-badge="${a.Id}"></div>
@@ -816,7 +825,7 @@ function renderSearch(items) {
   if (albums.length) {
     parts.push(`<h2>Albums</h2><div class="albums">${albums.map(a => `
       <div class="album" data-album="${a.Id}">
-        <img loading="lazy" src="${imageUrl(a, 200)}" alt="">
+        ${albumArtwork(a, 200)}
         <div class="t">${escapeHtml(a.Name)}</div>
         <div data-album-badge="${a.Id}"></div>
       </div>`).join('')}</div>`);
@@ -914,7 +923,7 @@ async function openArtist(artistId, fromMirror = false) {
     <h2>Albums</h2>
     <div class="albums">${albums.map(a => `
       <div class="album" data-album="${a.Id}">
-        <img loading="lazy" src="${imageUrl(a, 200)}" alt="">
+        ${albumArtwork(a, 200)}
         <div class="t">${escapeHtml(a.Name)}</div>
       </div>`).join('')}</div>
     <h2>Top tracks</h2>
