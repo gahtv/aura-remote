@@ -160,6 +160,58 @@ test('cancel stops Quick Connect polling', async () => {
   assert.equal(app.timers.size, 0);
 });
 
+test('pending password login excludes both sign-in methods and cancellation cannot enable them', async () => {
+  let resolvePassword;
+  const app = loadApp({
+    fetch: () => new Promise(resolve => { resolvePassword = resolve; }),
+  });
+  app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';`);
+  const pending = app.run('login()');
+  app.run('cancelQuickConnect()');
+  assert.equal(app.run(`$('loginBtn').disabled`), true);
+  assert.equal(app.run(`$('quickConnectBtn').disabled`), true);
+  await app.run('startQuickConnect()');
+  await app.run('login()');
+  assert.equal(app.calls.length, 1);
+  resolvePassword({ ok: false, status: 401 });
+  await pending;
+  assert.equal(app.run(`$('loginBtn').disabled`), false);
+  assert.equal(app.run(`$('quickConnectBtn').disabled`), false);
+  assert.match(app.run(`$('loginError').textContent`), /Wrong username/);
+});
+
+test('Quick Connect excludes password login and ignores a cancelled late response', async () => {
+  let resolveEnabled;
+  const app = loadApp({
+    fetch: () => new Promise(resolve => { resolveEnabled = resolve; }),
+  });
+  app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';`);
+  const pending = app.run('startQuickConnect()');
+  await app.run('login()');
+  assert.equal(app.calls.length, 1);
+  app.run('cancelQuickConnect()');
+  resolveEnabled({ ok: true, json: async () => true });
+  await pending;
+  assert.equal(app.calls.length, 1);
+  assert.equal(app.run('state.token'), 't');
+});
+
+test('a password response after leaving login cannot replace the active account', async () => {
+  let resolvePassword;
+  const app = loadApp({
+    fetch: () => new Promise(resolve => { resolvePassword = resolve; }),
+  });
+  app.run(`$('server').value = 'http://jf'; $('user').value = 'Admin'; $('pass').value = 'pw';
+    ensureBridgeSession = async () => true;
+    startPolling = loadLibrary = buildAtmosCatalog = startMirror = loadLink = () => {};`);
+  const pending = app.run('login()');
+  app.run('enterApp()');
+  resolvePassword({ ok: true, json: async () => ({ AccessToken: 'stale', User: { Id: 'stale', Name: 'Stale' } }) });
+  await pending;
+  assert.equal(app.run('state.token'), 't');
+  assert.equal(app.calls.length, 1);
+});
+
 for (const status of [401, 404]) {
   test(`Quick Connect expires on Connect ${status}`, async () => {
     const app = quickConnectApp({ status });

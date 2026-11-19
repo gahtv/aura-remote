@@ -149,6 +149,7 @@ function imageUrl(item, size = 400) {
 
 const loginServer = () => $('server').value.trim().replace(/\/$/, '');
 let quickConnect = null;
+let passwordAttempt = null;
 
 function cancelQuickConnect() {
   if (quickConnect) {
@@ -159,8 +160,8 @@ function cancelQuickConnect() {
   quickConnect = null;
   $('quickConnectPanel').classList.add('hidden');
   $('quickConnectCode').textContent = '';
-  $('quickConnectBtn').disabled = false;
-  $('loginBtn').disabled = false;
+  $('quickConnectBtn').disabled = !!passwordAttempt;
+  $('loginBtn').disabled = !!passwordAttempt;
 }
 
 function completeLogin(server, data) {
@@ -176,6 +177,7 @@ function completeLogin(server, data) {
 }
 
 async function startQuickConnect() {
+  if (passwordAttempt || quickConnect) return;
   cancelQuickConnect();
   const server = loginServer();
   $('loginError').textContent = '';
@@ -231,7 +233,7 @@ async function startQuickConnect() {
 }
 
 async function login() {
-  cancelQuickConnect();
+  if (passwordAttempt || quickConnect) return;
   const server = loginServer();
   const username = $('user').value.trim();
   const pw = $('pass').value;
@@ -239,7 +241,10 @@ async function login() {
   err.textContent = '';
   if (!server || !username || !pw) { err.textContent = 'All three fields are required.'; return; }
 
+  const attempt = {};
+  passwordAttempt = attempt;
   $('loginBtn').disabled = true;
+  $('quickConnectBtn').disabled = true;
   try {
     const res = await fetch(`${server}/Users/AuthenticateByName`, {
       method: 'POST',
@@ -249,17 +254,23 @@ async function login() {
     if (!res.ok) throw new Error(res.status === 401 ? 'Wrong username or password.' : `Server said ${res.status}.`);
     const data = await res.json();
 
-    completeLogin(server, data);
+    if (passwordAttempt === attempt) completeLogin(server, data);
   } catch (e) {
+    if (passwordAttempt !== attempt) return;
     err.textContent = (e.name === 'TypeError' || /fetch/i.test(e.message))
       ? `Can't reach ${server}. Check the address and that you're on the same network.`
       : e.message;
   } finally {
-    $('loginBtn').disabled = false;
+    if (passwordAttempt === attempt) {
+      passwordAttempt = null;
+      cancelQuickConnect();
+    }
   }
 }
 
 async function logout() {
+  passwordAttempt = null;
+  cancelQuickConnect();
   clearInterval(state.timer);
   clearInterval(state.mirrorTimer);
   // Drop the server-side session too: the cookie is HttpOnly and lives 30 days,
@@ -275,6 +286,7 @@ async function logout() {
 }
 
 function enterApp() {
+  passwordAttempt = null;
   cancelQuickConnect();
   $('login').classList.add('hidden');
   $('main').classList.remove('hidden');
