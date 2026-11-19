@@ -1090,6 +1090,8 @@ function applyMirror(m) {
       setView('library');
       selectLibTab(m.screen);
     } else if (m.screen === 'home') {
+      // Recent is the phone's view of Home's history shelf: stay on it.
+      if (state.view === 'library' && state.lib === 'recent') return;
       setView('now');
     }
   } finally {
@@ -1152,7 +1154,8 @@ function renderLyrics() {
   const pos = livePosition();
   const active = AuraLyrics.activeIndex(lines, pos);
   const spans = active >= 0 ? AuraLyrics.karaokeSpans(lines[active], pos) : [];
-  const sig = `${state.lyricsFor}:${lines.length}:${active}:${spans.map(sp => sp.sung ? 1 : 0).join('')}`;
+  const sung = active >= 0 ? (lines[active].words || []).filter(w => pos >= w.start).length : 0;
+  const sig = `${state.lyricsFor}:${lines.length}:${active}:${sung}`;
   if (sig === state.lyricsSig) return;
   state.lyricsSig = sig;
 
@@ -1207,7 +1210,7 @@ function setView(view) {
   // "Now" in the remote is Now Playing, not Aura's Home screen. Sending 'home'
   // here kicked the TV off Now Playing, so the mirror then chased it to Home.
   if (view === 'now') navigateTV('nowplaying');
-  if (view === 'library') navigateTV(state.lib);
+  if (view === 'library') navigateTV(tvScreenForLib(state.lib));
 }
 
 /* ---------------- wiring ---------------- */
@@ -1243,6 +1246,9 @@ $('search').addEventListener('input', () => {
   searchTimer = setTimeout(loadLibrary, 280);
 });
 
+// Aura keeps its history on Home, as the "Recently played" shelf.
+const tvScreenForLib = lib => (lib === 'recent' ? 'home' : lib);
+
 function selectLibTab(tab, { force = false } = {}) {
   if (!['albums', 'artists', 'tracks', 'recent'].includes(tab)) return;
   const alreadyShowing = tab === state.lib
@@ -1257,8 +1263,7 @@ function selectLibTab(tab, { force = false } = {}) {
 
 document.querySelectorAll('.seg').forEach(btn => btn.addEventListener('click', () => {
   selectLibTab(btn.dataset.lib);
-  // Aura keeps its history on Home, as the "Recently played" shelf.
-  navigateTV(btn.dataset.lib === 'recent' ? 'home' : btn.dataset.lib);
+  navigateTV(tvScreenForLib(btn.dataset.lib));
 }));
 
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
