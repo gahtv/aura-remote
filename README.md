@@ -153,11 +153,13 @@ adb -s emulator-5554 forward tcp:9099 tcp:8099
 The UI is plain HTML/CSS/JS with no build step, and the compose file bind-mounts `server/web`, so edits are
 live.
 
-Tests need only Node 18+ (no dependencies): they load the real `server/web` scripts against a stub DOM.
-The bridge itself has no tests yet, and there is no CI.
+The web tests need only Node 18+: they load the real `server/web` scripts against a stub DOM.
+Run the bridge tests with Python and the server's dev requirements.
 
 ```bash
 node --test tests/*.test.js
+server/.venv/bin/python -m pip install -r server/requirements-dev.txt
+server/.venv/bin/python -m pytest tests/test_cast_discovery.py
 ```
 
 ## Troubleshooting
