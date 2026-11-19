@@ -10,14 +10,13 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 
 Version **0.3.0**, pre-release, built for one household on a trusted LAN. Works with Aura
 **v0.2.0-alpha.3 or later** (the first release with the mirror link and on-TV pairing); the latest is
-v0.5.0-alpha.1. What is next for both apps is in Aura's [roadmap](https://github.com/gahtv/Aura/blob/main/docs/ROADMAP.md):
-retiring ADB and replacing polling with live state.
+v0.5.0-alpha.1. Aura's [roadmap](https://github.com/gahtv/Aura/blob/main/docs/ROADMAP.md) plans live
+state instead of polling; retiring ADB is this repo's own next step (see Limitations).
 
-0.3.0 follows what landed on Aura `main` after v0.5.0-alpha.1: Jellyfin bios on album and artist
-pages, word-by-word (karaoke) lyrics from enhanced LRC, Jellyfin word cues or TTML with duet voices,
-and Jellyfin play history. These come straight from Jellyfin, so they work with any Aura version.
-Aura's new Now Playing D-pad focus (DOWN from Play/Pause to Shuffle, DOWN from Shuffle or Repeat to
-the "up next" peek) needs nothing from the Remote: its D-pad sends the same keys as the TV remote.
+Jellyfin bios, word-by-word (karaoke) lyrics with duet voices and play history come straight from
+Jellyfin, so they work with any Aura version. Aura `main` has since added lyric extras the Remote does
+not draw yet (translation and romanization sub-lines, instrumental-break dots, song-part spacing and
+credits); see Limitations.
 
 ---
 
@@ -30,7 +29,7 @@ the "up next" peek) needs nothing from the Remote: its D-pad sends the same keys
 | **ATMOS badges** | Anything whose audio stream is `eac3` with a `JOC` or `Dolby Atmos` profile — the same rule Aura uses. Cached 24 h per server+user. |
 | **Queue** | The endpoint's live queue and current index; tap a row to jump. |
 | **Transport** | Play/pause/next/previous/seek, repeat and shuffle — semantic commands, not key presses. |
-| **Lyrics** | A labelled **Lyrics** chip in Now Playing that follows the playhead. Reads the same formats Aura does: line-synced LRC, word-timed (enhanced) LRC, Jellyfin word cues and TTML. Word-timed lines fill in word by word; singer markers (`v1:`/`v2:`, TTML agents) put the second voice on the right and group lines in the middle. Unsynced lyrics are listed without a highlight. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
+| **Lyrics** | A labelled **Lyrics** chip in Now Playing that follows the playhead. Reads line-synced LRC, word-timed (enhanced) LRC, Jellyfin word cues and TTML from Jellyfin, including lyrics saved with Aura's **Find lyrics**. Word-timed lines fill in word by word; singer markers (`v1:`/`v2:`, TTML agents) put the second voice on the right and group lines in the middle. Unsynced lyrics are listed without a highlight. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
 | **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar; the Remote and Queue tabs are exempt so you can drive the TV while mirroring, and re-applying a screen the remote is already showing is a no-op, so lists keep their scroll position. |
 | **Cast fallback** | Pick a Cast TV or speaker in the device picker and the bridge plays to it: the first track of what you pick (Cast has no queue here), with play/pause, stop and seek. The picker falls back to Cast on its own when no Aura session is found. |
 | **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. Controls follow the pick: the bridge's `AURA_LINK` TV is driven over the mirror link, any other Aura through Jellyfin's remote control (transport, seek, shuffle, repeat and its Jellyfin queue; no D-pad or mirroring). |
@@ -66,7 +65,7 @@ the "up next" peek) needs nothing from the Remote: its D-pad sends the same keys
 - **Aura** v0.2.0-alpha.3 or later, which serves the mirror link (`remote/MirrorServer.kt` in the Aura
   repo). Without it the remote still browses the library, controls Aura through Jellyfin and can Cast, but
   the D-pad and mirroring stay dark.
-- **Jellyfin** 10.9+ (10.10 tested), reachable from both the bridge and the browser.
+- **Jellyfin** 10.9+ (tested on 10.10, 12.2 and 12.4), reachable from both the bridge and the browser.
 - **Docker** with compose, on a machine that can reach the TV on your LAN.
 
 ## Quick start
@@ -102,7 +101,6 @@ available).
 | `AURA_TOKEN` | no | A pairing token to use instead of the file (skips pairing; not saved). |
 | `AURA_ACTIVITY` | no | Activity `/api/launch` starts (default `com.hans.aura/.MainActivity`). |
 | `SESSIONS_FILE` | no | Where bridge sessions are stored (default `/data/sessions.json`). |
-| `MIRROR_WIDTH` / `MIRROR_QUALITY` | no | JPEG size and quality for the deprecated `/api/screen` (`960`, `70`). |
 
 ## Security model
 
@@ -118,7 +116,8 @@ Three credentials, none shared with the wrong party:
 
 Revoking access:
 
-- **Aura**: `MirrorLink.unpair()` in the TV app clears its token (the bridge then gets 401s).
+- **Aura**: approving another bridge's pairing replaces the token, and the old bridge gets 401s. The TV
+  has no unpair button yet.
 - **Bridge**: the PWA's **Sign out** button (top bar), `POST /api/session/logout` from that device, or
   delete the entry in `/data/sessions.json`.
 
@@ -145,7 +144,9 @@ plain HTTP, protected only by the token.
 | POST | `/api/load`, `/api/transport`, `/api/seek`, `/api/volume` | Cast playback (`/api/volume` is API-only; the UI has no volume control). |
 | GET | `/api/status?device=` | Now playing on a Cast target. |
 | POST | `/api/launch` | Start Aura (requires `ADB_SERIAL`). |
-| GET | `/api/tvstate`, `/api/screen`, `/api/key`, `/api/device` | **Deprecated.** Accessibility-tree dump, JPEG frame, key injection and foreground window — the ADB mirroring path, replaced by `/api/aura/*`. Kept working for existing scripts; `/api/launch` is the only ADB call the UI still makes. |
+
+The bridge still serves the old ADB mirroring endpoints, replaced by `/api/aura/*`. They are deprecated and
+left out here; the bridge's `/docs` page lists them.
 
 ## Development
 
@@ -193,6 +194,11 @@ server/.venv/bin/python -m pytest tests/test_cast_discovery.py
   control only: no D-pad, mirroring, or exact queue jumps.
 - Cast plays one track at a time; there is no Cast queue, and Cast plays are not reported to Jellyfin, so
   they do not show up under **Recent**.
+- Lyrics show the sung lines only. Aura's translation and romanization sub-lines, instrumental-break dots,
+  song-part spacing and credits are TV-only. An LRC translation sharing its lead line's timestamp shows as a
+  separate line that takes the highlight, a blank LRC timestamp shows as an empty row, and an inline TTML
+  romanization (`x-roman` span) is run into its line's text.
+- Lyrics Aura finds through its optional LRCLIB lookup stay on the TV; the Remote shows only what Jellyfin has.
 - Word highlights run on a local clock between Jellyfin's progress reports, so they can drift by up to
   a poll (2 s) after a seek on the TV.
 - Auto-launch is the only ADB-dependent feature; replacing it with the Android TV Remote v2 protocol
