@@ -58,7 +58,7 @@ function loadApp() {
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  for (const file of ['routing.js', 'app.js']) {
+  for (const file of ['routing.js', 'lyrics.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(web, file), 'utf8'), sandbox, { filename: file });
   }
   const run = code => vm.runInContext(code, sandbox);
@@ -257,4 +257,57 @@ test('falling back to a Cast target on its own clears the previous TV\'s queue',
   assert.equal(app.run(`state.target.key`), 'cast:Kitchen');
   assert.equal(app.run(`state.queue.length`), 0);
   assert.equal(app.run(`state.np`), null);
+});
+
+test('lyrics with word cues highlight the sung part of the current line', async () => {
+  const app = loadApp();
+  app.respondWith('/Audio/', { Lyrics: [
+    { Text: 'v1: Hello world', Start: 10000000, Cues: [
+      { Position: 4, EndPosition: 9, Start: 10000000 }, { Position: 10, EndPosition: 15, Start: 20000000 }] },
+    { Text: 'v2: Reply', Start: 30000000 },
+  ] });
+  app.run(`state.np = { item: { Id: 't1' }, playing: false, position: 1.5, duration: 200 }`);
+  await app.run(`setLyricsVisible(true)`);
+  const html = app.run(`$('lyricsLines').innerHTML`);
+  assert.match(html, /class="lyric active voice-primary"><span class="sung">Hello<\/span><span class="unsung"> world<\/span>/);
+  assert.match(html, /class="lyric voice-secondary">Reply</);
+});
+
+test('unsynced lyrics are listed without a highlighted line', async () => {
+  const app = loadApp();
+  app.respondWith('/Audio/', { Lyrics: [{ Text: 'One', Start: 0 }, { Text: 'Two', Start: 0 }] });
+  app.run(`state.np = { item: { Id: 't2' }, playing: true, position: 50, duration: 200 }`);
+  await app.run(`setLyricsVisible(true)`);
+  assert.doesNotMatch(app.run(`$('lyricsLines').innerHTML`), /active/);
+});
+
+test('the playback clock runs on between Jellyfin progress reports', () => {
+  const app = loadApp();
+  app.run(`state.np = { item: { Id: 't1' }, playing: true, position: 10, duration: 200 }; anchorClock()`);
+  app.run(`state.npClock.at -= 1500; anchorClock()`);
+  assert.ok(Math.abs(app.run(`livePosition()`) - 11.5) < 0.1);
+  app.run(`state.np = { item: { Id: 't1' }, playing: true, position: 30, duration: 200 }; anchorClock()`);
+  assert.ok(Math.abs(app.run(`livePosition()`) - 30) < 0.1);
+});
+
+test('the Recent tab lists Jellyfin play history, newest first', async () => {
+  const app = loadApp();
+  app.run(`selectLibTab('recent')`);
+  await app.run(`loadLibrary()`);
+  const url = new URL(app.jellyfinCalls()[0].url);
+  assert.equal(url.searchParams.get('SortBy'), 'DatePlayed');
+  assert.equal(url.searchParams.get('SortOrder'), 'Descending');
+  assert.equal(url.searchParams.get('Filters'), 'IsPlayed');
+  assert.match(app.run(`$('libraryBody').innerHTML`), /data-track="x1"/);
+});
+
+test('album and artist sheets show the Jellyfin bio as plain text', async () => {
+  const app = loadApp();
+  app.respondWith('/Items/al1', { Name: 'Album', Overview: '<p>First &amp; best.</p><p>Second<br>line</p>' });
+  await app.run(`openAlbum('al1', true)`);
+  assert.equal(app.run(`$('sheetBio').textContent`), 'First & best.\n\nSecond\nline');
+  assert.equal(app.run(`$('sheetBio').classList.contains('hidden')`), false);
+  app.respondWith('/Items/ar1', { Name: 'Artist' });
+  await app.run(`openArtist('ar1', true)`);
+  assert.equal(app.run(`$('sheetBio').classList.contains('hidden')`), true);
 });

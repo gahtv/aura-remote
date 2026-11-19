@@ -8,7 +8,7 @@
  */
 
 const CLIENT = 'Aura Remote';
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const POLL_MS = 2000;
 const ATMOS_TTL_MS = 24 * 60 * 60 * 1000;
 const TV_HINT = /streamer|android tv|shield|\btv\b/i;
@@ -58,6 +58,10 @@ const state = {
   lyricsOn: false,
   lyricsFor: null,
   lyricsLines: null,
+  lyricsSig: '',
+  lyricsTimer: null,
+  // Where the playback clock was last anchored to a reported position.
+  npClock: null,
   sheetAlbumId: null,
   sheetArtistId: null,
   timer: null,
@@ -512,6 +516,7 @@ async function tick() {
   try {
     await refreshTargets();
     await refreshNowPlaying();
+    anchorClock();
     if (!state.sessions.length && !state.np && !state.launching) launchAura(false);
     renderNowPlaying();
   } catch (e) {
@@ -745,6 +750,9 @@ async function loadLibrary() {
     url = `${base}&IncludeItemTypes=MusicAlbum&Fields=ProductionYear,AlbumArtist`;
   } else if (state.lib === 'artists') {
     url = `${base}&IncludeItemTypes=MusicArtist`;
+  } else if (state.lib === 'recent') {
+    // Jellyfin's play history: what Aura's "Recently played" shelf shows.
+    url = `/Users/${state.userId}/Items?Recursive=true&Limit=100&ImageTypeLimit=1&EnableImageTypes=Primary&IncludeItemTypes=Audio&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Fields=Album,Artists,AlbumId,UserData`;
   } else {
     url = `${base}&IncludeItemTypes=Audio&Fields=Album,Artists,AlbumId`;
   }
@@ -756,6 +764,7 @@ async function loadLibrary() {
     if (term) return renderSearch(items);
     if (state.lib === 'artists') return renderArtistList(items);
     if (state.lib === 'tracks') return renderTrackList(items);
+    if (state.lib === 'recent') return renderTrackList(items, 'Nothing played yet.');
     return renderAlbumGrid(items);
   } catch {
     body.innerHTML = '<div class="muted small">Library unavailable.</div>';
@@ -782,7 +791,7 @@ function renderArtistList(items) {
     </div>`).join('') || '<div class="muted small">No artists.</div>';
 }
 
-function renderTrackList(items) {
+function renderTrackList(items, empty = 'No tracks.') {
   $('libraryBody').innerHTML = items.map((t, i) => `
     <div class="row" data-track="${t.Id}">
       <div class="idx">${i + 1}</div>
@@ -791,7 +800,7 @@ function renderTrackList(items) {
         <div class="muted small">${escapeHtml(t.Artists?.join(', ') || '')}${t.Album ? ' · ' + escapeHtml(t.Album) : ''}</div>
       </div>
       <div data-album-badge="${t.AlbumId || ''}"></div>
-    </div>`).join('') || '<div class="muted small">No tracks.</div>';
+    </div>`).join('') || `<div class="muted small">${empty}</div>`;
   refreshBadges();
 }
 
@@ -824,6 +833,24 @@ function renderSearch(items) {
 
 /* ---------------- detail sheets ---------------- */
 
+// Jellyfin overviews are HTML; the sheet shows them as plain paragraphs.
+function bioText(html) {
+  if (!html) return '';
+  const text = String(html)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '');
+  return AuraLyrics.decodeEntities(text).replace(/[ \t]+/g, ' ').replace(/\n\s*\n\s*/g, '\n\n').trim();
+}
+
+function renderBio(item) {
+  const bio = $('sheetBio');
+  const text = bioText(item?.Overview);
+  bio.textContent = text;
+  bio.classList.remove('open');
+  bio.classList.toggle('hidden', !text);
+}
+
 function openSheet(id) { $(id).classList.remove('hidden'); }
 function closeSheet(id) { $(id).classList.add('hidden'); }
 
@@ -842,6 +869,7 @@ async function openAlbum(albumId, fromMirror = false) {
   const src = imageUrl(album, 200);
   $('sheetArt').src = src;
   $('sheetArt').style.visibility = src ? 'visible' : 'hidden';
+  renderBio(album);
 
   const atmos = tracks.some(isAtmosTrack);
   $('sheetActions').innerHTML = `
@@ -879,6 +907,7 @@ async function openArtist(artistId, fromMirror = false) {
   const src = imageUrl(artist, 200);
   $('sheetArt').src = src;
   $('sheetArt').style.visibility = src ? 'visible' : 'hidden';
+  renderBio(artist);
   $('sheetActions').innerHTML = '';
 
   $('sheetList').innerHTML = `
@@ -1070,11 +1099,35 @@ function applyMirror(m) {
 
 /* ---------------- lyrics ---------------- */
 
+// Jellyfin only learns the position from the TV's progress reports, which are
+// further apart than a sung word: between two reports the clock runs on locally.
+function anchorClock() {
+  const np = state.np;
+  if (!np) { state.npClock = null; return; }
+  const id = np.item?.Id || np.title || '';
+  const c = state.npClock;
+  const unchanged = c && c.id === id && c.reported === np.position && c.playing === np.playing;
+  if (!unchanged) state.npClock = { id, reported: np.position, position: np.position, at: Date.now(), playing: np.playing };
+}
+
+function livePosition() {
+  const np = state.np;
+  if (!np) return 0;
+  const c = state.npClock;
+  if (!c || c.reported !== np.position) return np.position;
+  const elapsed = c.playing ? (Date.now() - c.at) / 1000 : 0;
+  return np.duration > 0 ? Math.min(np.duration, c.position + elapsed) : c.position + elapsed;
+}
+
 async function setLyricsVisible(on) {
   state.lyricsOn = on;
   $('lyricsBox').classList.toggle('hidden', !on);
   $('btnLyrics').classList.toggle('on', on);
+  clearInterval(state.lyricsTimer);
+  state.lyricsTimer = null;
   if (!on) return;
+  // Word highlights need a finer clock than the 2 s state poll.
+  state.lyricsTimer = setInterval(renderLyrics, 250);
 
   const itemId = state.np?.item?.Id;
   if (!itemId) { $('lyricsLines').innerHTML = '<div class="muted small">Nothing playing.</div>'; return; }
@@ -1082,24 +1135,40 @@ async function setLyricsVisible(on) {
 
   try {
     const res = await api(`/Audio/${itemId}/Lyrics`);
-    const data = res.ok ? await res.json() : {};
-    const lines = (data.Lyrics || []).map(l => ({ text: (l.Text || '').trim(), start: (l.Start || 0) / 1e7 }));
+    const lines = AuraLyrics.fromJellyfin(res.ok ? await res.json() : {});
     state.lyricsFor = itemId;
     state.lyricsLines = lines.length ? lines : null;
   } catch {
     state.lyricsFor = itemId;
     state.lyricsLines = null;
   }
+  state.lyricsSig = '';
   renderLyrics();
 }
 
 function renderLyrics() {
+  if (!state.lyricsOn) return;
   const lines = state.lyricsLines || [];
-  const pos = state.np?.position || 0;
-  let active = -1;
-  lines.forEach((l, i) => { if (l.start <= pos) active = i; });
+  const pos = livePosition();
+  const active = AuraLyrics.activeIndex(lines, pos);
+  const spans = active >= 0 ? AuraLyrics.karaokeSpans(lines[active], pos) : [];
+  const sig = `${state.lyricsFor}:${lines.length}:${active}:${spans.map(sp => sp.sung ? 1 : 0).join('')}`;
+  if (sig === state.lyricsSig) return;
+  state.lyricsSig = sig;
+
+  const voiced = lines.some(l => l.voice);
+  const lineHtml = (l, i) => {
+    const cls = ['lyric'];
+    if (i === active) cls.push('active');
+    else if (active >= 0 && i < active) cls.push('past');
+    if (voiced) cls.push(`voice-${l.voice?.kind || 'primary'}`);
+    const body = i === active && lines[active].words?.length
+      ? spans.map(sp => `<span class="${sp.sung ? 'sung' : 'unsung'}">${escapeHtml(sp.text)}</span>`).join('')
+      : escapeHtml(l.text);
+    return `<div class="${cls.join(' ')}">${body || '&nbsp;'}</div>`;
+  };
   $('lyricsLines').innerHTML = lines.length
-    ? lines.map((l, i) => `<div class="lyric${i === active ? ' active' : ''}">${escapeHtml(l.text)}</div>`).join('')
+    ? lines.map(lineHtml).join('')
     : '<div class="muted small">No lyrics for this track.</div>';
 }
 
@@ -1175,7 +1244,7 @@ $('search').addEventListener('input', () => {
 });
 
 function selectLibTab(tab, { force = false } = {}) {
-  if (!['albums', 'artists', 'tracks'].includes(tab)) return;
+  if (!['albums', 'artists', 'tracks', 'recent'].includes(tab)) return;
   const alreadyShowing = tab === state.lib
     && !$('search').value
     && $('libraryBody').children.length > 0;
@@ -1188,7 +1257,8 @@ function selectLibTab(tab, { force = false } = {}) {
 
 document.querySelectorAll('.seg').forEach(btn => btn.addEventListener('click', () => {
   selectLibTab(btn.dataset.lib);
-  navigateTV(btn.dataset.lib);
+  // Aura keeps its history on Home, as the "Recently played" shelf.
+  navigateTV(btn.dataset.lib === 'recent' ? 'home' : btn.dataset.lib);
 }));
 
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
@@ -1239,6 +1309,8 @@ $('signOutBtn').addEventListener('click', () => {
 });
 
 document.addEventListener('click', e => {
+  if (e.target.closest('#sheetBio')) { $('sheetBio').classList.toggle('open'); return; }
+
   const close = e.target.closest('[data-close]');
   if (close) { closeSheet(close.dataset.close); return; }
 

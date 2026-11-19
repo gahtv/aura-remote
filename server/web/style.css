@@ -535,7 +535,31 @@ h2 {
 }
 
 .lyric { color: var(--dim); font-size: 14px; line-height: 1.35; }
+.lyric.past { opacity: 0.6; }
 .lyric.active { color: var(--amber); font-weight: 650; }
+/* Word-timed lines fill in as they are sung. */
+.lyric.active .unsung { color: var(--text); opacity: 0.55; }
+.lyric.active .sung { color: var(--amber); }
+/* Duets: lead left, second voice right, group lines centred. */
+.lyric.voice-secondary { text-align: right; }
+.lyric.voice-secondary.active, .lyric.voice-secondary.active .sung { color: #9ec7e8; }
+.lyric.voice-group { text-align: center; }
+
+/* ---------- bios ---------- */
+
+.bio {
+  margin: 0 0 12px;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+.bio.open { display: block; max-height: 30vh; overflow-y: auto; }
 
 /* ---------- toast ---------- */
 
