@@ -52,6 +52,7 @@ function loadApp(intercept = () => null, saved = {}, options = {}) {
   const sandbox = {
     console,
     AbortController,
+    URLSearchParams,
     addEventListener() {},
     fetch: async (url, opts = {}) => {
       const call = { url: String(url), method: opts.method || 'GET', body: opts.body };
@@ -320,6 +321,26 @@ test('sign-out closes lyrics so the next sign-in does not reuse a stopped highli
   await app.run('logout()');
   assert.equal(app.run("!state.lyricsOn && $('lyricsBox').classList.contains('hidden')"), true);
   assert.equal(app.run('state.lyricsTimer'), null);
+});
+
+test('Cast media URLs authenticate with ApiKey instead of the legacy api_key', async () => {
+  const app = loadApp();
+  app.run(`state.target = { kind: 'cast', label: 'Kitchen' }; state.deviceId = 'remote-device'`);
+  await app.run(`playItems(['track1'])`);
+
+  const load = app.calls.find(c => c.url.endsWith('/api/load'));
+  assert.equal(load.method, 'POST');
+  const body = JSON.parse(load.body);
+  assert.equal(body.device, 'Kitchen');
+  assert.equal(body.content_type, 'audio/mp4');
+  const url = new URL(body.url);
+  assert.equal(url.origin, 'http://jf');
+  assert.equal(url.pathname, '/Audio/track1/universal');
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    UserId: 'u', DeviceId: 'remote-device', Container: 'mp4', AudioCodec: 'copy',
+    TranscodingContainer: 'mp4', TranscodingProtocol: 'http', ApiKey: 't',
+  });
+  assert.equal(url.searchParams.has('api_key'), false);
 });
 
 test('album grids preserve working covers and replace missing artwork without empty image URLs', async () => {
