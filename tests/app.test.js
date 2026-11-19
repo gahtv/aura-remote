@@ -184,6 +184,28 @@ test('sign-out closes lyrics so the next sign-in does not reuse a stopped highli
   assert.equal(app.run('state.lyricsTimer'), null);
 });
 
+test('album grids preserve working covers and replace missing artwork without empty image URLs', async () => {
+  const app = loadApp();
+  const albums = [
+    { Id: 'missing', Name: 'No cover', Type: 'MusicAlbum' },
+    { Id: 'covered', Name: 'With cover', Type: 'MusicAlbum', ImageTags: { Primary: 'cover-tag' } },
+  ];
+  const check = html => {
+    assert.match(html, /data-album="missing"/);
+    assert.match(html, /class="album-art-placeholder" aria-hidden="true"/);
+    assert.match(html, /data-album="covered"/);
+    assert.match(html, /src="http:\/\/jf\/Items\/covered\/Images\/Primary\?tag=cover-tag/);
+    assert.doesNotMatch(html, /<img[^>]+src=""/);
+  };
+  app.run(`renderAlbumGrid(${JSON.stringify(albums)})`);
+  check(app.run(`$('libraryBody').innerHTML`));
+  app.run(`renderSearch(${JSON.stringify(albums)})`);
+  check(app.run(`$('libraryBody').innerHTML`));
+  app.respondWith('AlbumArtistIds=', { Items: albums });
+  await app.run(`openArtist('artist', true)`);
+  check(app.run(`$('sheetList').innerHTML`));
+});
+
 test('transport for the linked TV goes over the mirror link', async () => {
   const app = loadApp();
   app.select('aura:s1');

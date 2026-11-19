@@ -3,17 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d0c0b">
+<meta name="theme-color" content="#0e0c0a">
 <title>Aura Remote</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="expressive.css">
 </head>
 <body>
 
 <!-- ---------- login ---------- -->
 <div id="login" class="screen">
-  <h1>Aura Remote</h1>
-  <p>Controls Aura on the TV. Falls back to casting when Aura isn't running.</p>
+  <div class="login-panel">
+  <img class="login-mark" src="icon.svg" width="64" height="64" alt="">
+  <div class="eyebrow">Your music. Within reach.</div>
+  <h1>Aura<span>Remote</span></h1>
+  <p>Settle in. Pick a record. Control Aura on your TV, or cast to a speaker.</p>
 
   <div class="field">
     <label for="server">Jellyfin server</label>
@@ -29,13 +33,14 @@
   </div>
 
   <button id="loginBtn" class="btn primary">Sign in</button>
-  <div id="loginError"></div>
+  <div id="loginError" role="alert"></div>
+  </div>
 </div>
 
 <!-- ---------- main ---------- -->
 <div id="main" class="screen hidden">
   <header>
-    <div class="brand">Aura Remote</div>
+    <div class="brand">Aura<span>Remote</span></div>
     <button id="mirrorBtn" class="chip" aria-pressed="false" title="Mirror the TV">
       <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M440-520h80v56q0 7 6 9.5t11-2.5l89-89q6-6 6-14t-6-14l-89-89q-5-5-11-2.5t-6 9.5v56h-80q-50 0-85 35t-35 85v40q0 17 11.5 28.5T360-400q17 0 28.5-11.5T400-440v-40q0-17 11.5-28.5T440-520ZM80-120q-17 0-28.5-11.5T40-160q0-17 11.5-28.5T80-200h800q17 0 28.5 11.5T920-160q0 17-11.5 28.5T880-120H80Zm80-120q-33 0-56.5-23.5T80-320v-440q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v440q0 33-23.5 56.5T800-240H160Zm0-80h640v-440H160v440Zm0 0v-440 440Z"/></svg>Mirror
     </button>
@@ -44,13 +49,14 @@
       <span id="targetState">connecting…</span>
       <svg class="ic chev" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z"/></svg>
     </button>
-    <button id="signOutBtn" class="chip" title="Sign out of this remote">
+    <button id="signOutBtn" class="chip" title="Sign out of this remote" aria-label="Sign out of this remote">
       <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h240q17 0 28.5 11.5T480-800q0 17-11.5 28.5T440-760H200v560h240q17 0 28.5 11.5T480-160q0 17-11.5 28.5T440-120H200Zm487-320H400q-17 0-28.5-11.5T360-480q0-17 11.5-28.5T400-520h287l-75-75q-11-11-11-27t11-28q11-12 28-12.5t29 11.5l143 143q12 12 12 28t-12 28L669-309q-12 12-28.5 11.5T612-310q-11-12-10.5-28.5T613-366l74-74Z"/></svg>Sign out
     </button>
   </header>
 
   <main>
     <section id="view-now" class="view">
+      <div class="view-heading"><div class="eyebrow">The listening room</div><h1>Now playing</h1></div>
       <div id="pairBox" class="card hidden">
         <div class="pair-msg" id="pairMsg">This remote isn't paired with the TV yet.</div>
         <button id="btnPair" class="btn primary">Pair with TV</button>
@@ -77,7 +83,7 @@
           </div>
           <div class="seek">
             <span class="time" id="npPos">0:00</span>
-            <input id="npSeek" type="range" min="0" max="1000" value="0">
+            <input id="npSeek" type="range" min="0" max="1000" value="0" aria-label="Playback position">
             <span class="time" id="npDur">0:00</span>
           </div>
           <div class="transport">
@@ -111,6 +117,7 @@
     </section>
 
     <section id="view-library" class="view hidden">
+      <div class="view-heading"><div class="eyebrow">Find your next favourite</div><h1>Your library</h1></div>
       <div class="segmented" role="tablist">
         <button class="seg active" data-lib="albums">Albums</button>
         <button class="seg" data-lib="artists">Artists</button>
@@ -119,7 +126,7 @@
       </div>
       <div class="search-row">
         <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M380-320q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l224 224q11 11 11 28t-11 28q-11 11-28 11t-28-11L532-372q-30 24-69 38t-83 14Zm0-80q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
-        <input id="search" type="search" placeholder="Search" autocomplete="off">
+        <input id="search" type="search" placeholder="Search your music" aria-label="Search your music" autocomplete="off">
       </div>
       <div id="libraryBody"></div>
     </section>
@@ -165,7 +172,7 @@
     </section>
   </main>
 
-  <nav id="tabs">
+  <nav id="tabs" aria-label="Main navigation">
     <button class="tab active" data-view="now">
       <svg class="ic" viewBox="0 -960 960 960" aria-hidden="true"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-382q0-17 11.5-28.5T520-840h160q17 0 28.5 11.5T720-800v80q0 17-11.5 28.5T680-680H560v400q0 66-47 113t-113 47Z"/></svg>Now
     </button>
