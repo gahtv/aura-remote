@@ -923,7 +923,7 @@ async function openArtist(artistId, fromMirror = false) {
     <h2>Albums</h2>
     <div class="albums">${albums.map(a => `
       <div class="album" data-album="${a.Id}">
-        <img loading="lazy" src="${imageUrl(a, 200)}" alt="">
+        ${albumArtwork(a, 200)}
         <div class="t">${escapeHtml(a.Name)}</div>
       </div>`).join('')}</div>
     <h2>Top tracks</h2>
