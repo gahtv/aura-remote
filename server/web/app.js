@@ -147,8 +147,92 @@ function imageUrl(item, size = 400) {
 
 /* ---------------- auth ---------------- */
 
+const loginServer = () => $('server').value.trim().replace(/\/$/, '');
+let quickConnect = null;
+
+function cancelQuickConnect() {
+  if (quickConnect) {
+    clearTimeout(quickConnect.timer);
+    clearTimeout(quickConnect.expiry);
+    quickConnect.controller.abort();
+  }
+  quickConnect = null;
+  $('quickConnectPanel').classList.add('hidden');
+  $('quickConnectCode').textContent = '';
+  $('quickConnectBtn').disabled = false;
+  $('loginBtn').disabled = false;
+}
+
+function completeLogin(server, data) {
+  cancelQuickConnect();
+  state.server = server;
+  state.token = data.AccessToken;
+  state.userId = data.User.Id;
+  state.userName = data.User.Name;
+  store.set('lastServer', server);
+  store.set('auth', { server, token: state.token, userId: state.userId, userName: state.userName });
+  $('pass').value = '';
+  enterApp();
+}
+
+async function startQuickConnect() {
+  cancelQuickConnect();
+  const server = loginServer();
+  $('loginError').textContent = '';
+  if (!server) { $('loginError').textContent = 'Jellyfin server is required.'; return; }
+  const attempt = { controller: new AbortController() };
+  quickConnect = attempt;
+  $('quickConnectBtn').disabled = true;
+  $('loginBtn').disabled = true;
+  $('quickConnectPanel').classList.remove('hidden');
+  const expired = 'Quick Connect code expired. Please try again.';
+  const fail = message => {
+    if (quickConnect !== attempt) return;
+    cancelQuickConnect();
+    $('loginError').textContent = message;
+  };
+  attempt.expiry = setTimeout(() => fail(expired), 5 * 60 * 1000);
+  const request = async (path, body) => {
+    const res = await fetch(server + path, {
+      method: body ? 'POST' : 'GET',
+      headers: { Authorization: authHeader(''), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: attempt.controller.signal,
+    });
+    if (!res.ok) throw new Error(path.startsWith('/QuickConnect/Connect') && [401, 404].includes(res.status)
+      ? expired : `Server said ${res.status}.`);
+    return res.json();
+  };
+  try {
+    if (!await request('/QuickConnect/Enabled')) {
+      fail('Quick Connect is off on this server');
+      return;
+    }
+    if (quickConnect !== attempt) return;
+    const data = await request('/QuickConnect/Initiate', {});
+    if (quickConnect !== attempt) return;
+    $('quickConnectCode').textContent = data.Code;
+    const poll = async () => {
+      if (quickConnect !== attempt) return;
+      if ($('login').classList.contains('hidden')) { cancelQuickConnect(); return; }
+      try {
+        const result = await request('/QuickConnect/Connect?secret=' + encodeURIComponent(data.Secret));
+        if (quickConnect !== attempt) return;
+        if (result.Authenticated) {
+          const auth = await request('/Users/AuthenticateWithQuickConnect', { Secret: data.Secret });
+          if (quickConnect === attempt) completeLogin(server, auth);
+        } else {
+          attempt.timer = setTimeout(poll, 3000);
+        }
+      } catch (e) { fail(e.message); }
+    };
+    attempt.timer = setTimeout(poll, 3000);
+  } catch (e) { fail(e.message); }
+}
+
 async function login() {
-  const server = $('server').value.trim().replace(/\/$/, '');
+  cancelQuickConnect();
+  const server = loginServer();
   const username = $('user').value.trim();
   const pw = $('pass').value;
   const err = $('loginError');
@@ -165,14 +249,7 @@ async function login() {
     if (!res.ok) throw new Error(res.status === 401 ? 'Wrong username or password.' : `Server said ${res.status}.`);
     const data = await res.json();
 
-    state.server = server;
-    state.token = data.AccessToken;
-    state.userId = data.User.Id;
-    state.userName = data.User.Name;
-    store.set('lastServer', server);
-    store.set('auth', { server, token: state.token, userId: state.userId, userName: state.userName });
-    $('pass').value = '';
-    enterApp();
+    completeLogin(server, data);
   } catch (e) {
     err.textContent = (e.name === 'TypeError' || /fetch/i.test(e.message))
       ? `Can't reach ${server}. Check the address and that you're on the same network.`
@@ -198,6 +275,7 @@ async function logout() {
 }
 
 function enterApp() {
+  cancelQuickConnect();
   $('login').classList.add('hidden');
   $('main').classList.remove('hidden');
   ensureBridgeSession().then(loadLink);
@@ -1213,6 +1291,9 @@ function setView(view) {
 /* ---------------- wiring ---------------- */
 
 $('loginBtn').addEventListener('click', login);
+$('quickConnectBtn').addEventListener('click', startQuickConnect);
+$('quickConnectCancel').addEventListener('click', cancelQuickConnect);
+window.addEventListener('pagehide', cancelQuickConnect);
 $('pass').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 
 $('btnPlay').addEventListener('click', () => sendTransport(state.np?.playing ? 'pause' : 'play'));

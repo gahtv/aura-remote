@@ -80,6 +80,10 @@ cd server && docker compose up -d --build
 Open `http://<bridge-host>:8100/`, sign in with a Jellyfin account, then press **Pair with TV**. Aura shows
 an allow/deny prompt on the TV; approving it mints the token the bridge keeps from then on.
 
+To sign in without a password, fill in the Jellyfin server and choose **Use Quick Connect**.
+On a signed-in Jellyfin device, open your profile → **Quick Connect** and enter the displayed
+code within five minutes. Quick Connect must be enabled on the server.
+
 ## Configuration
 
 Everything lives in `.env` at the repo root — see [`.env.example`](.env.example). Nothing is hardcoded, and

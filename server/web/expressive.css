@@ -46,6 +46,10 @@ h2 { font-size: 22px; font-weight: 650; line-height: 1.25; letter-spacing: -.025
 .btn.primary { color: var(--on-accent); }
 #login .btn.primary { min-height: 56px; font-size: 16px; }
 #loginError { color: var(--error); min-height: 20px; margin-top: 16px; }
+#quickConnectBtn { width: 100%; margin-top: 12px; background: var(--card-hi); color: var(--amber); }
+#quickConnectPanel { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-sheet); background: var(--card); text-align: center; }
+#quickConnectCode { color: var(--amber); font-size: clamp(32px, 9vw, 48px); font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+#login #quickConnectPanel p { margin: 16px 0; color: var(--dim); }
 
 /* App bar and navigation: tonal active indicator, not just coloured text. */
 header { flex-wrap: wrap; gap: 8px; padding: calc(14px + env(safe-area-inset-top)) 20px 14px; background: #0e0c0af5; }

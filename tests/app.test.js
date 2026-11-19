@@ -22,7 +22,7 @@ function element() {
   };
 }
 
-function loadApp() {
+function loadApp(options = {}) {
   const calls = [];
   const elements = new Map();
   let controlFails = false;
@@ -42,8 +42,10 @@ function loadApp() {
   };
   const sandbox = {
     console,
-    fetch: async (url, opts = {}) => { calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body }); return respond(String(url)); },
-    setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+    AbortController,
+    addEventListener() {},
+    fetch: async (url, opts = {}) => { calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body }); return options.fetch ? options.fetch(String(url), opts) : respond(String(url)); },
+    setTimeout: options.setTimeout || (() => 0), clearTimeout: options.clearTimeout || (() => {}), setInterval: () => 0, clearInterval() {},
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     location: { origin: 'http://bridge' },
     navigator: { platform: 'test' },
@@ -85,6 +87,96 @@ function loadApp() {
     jellyfinCalls: () => calls.filter(c => c.url.startsWith('http://jf/')),
   };
 }
+
+function quickConnectApp({ enabled = true, status = 200 } = {}) {
+  const timers = new Map();
+  let nextTimer = 0;
+  let polls = 0;
+  const app = loadApp({
+    setTimeout: (fn, ms) => { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
+    clearTimeout: id => timers.delete(id),
+    fetch: async url => ({
+      ok: !url.includes('/Connect?') || status === 200,
+      status: url.includes('/Connect?') ? status : 200,
+      json: async () => url.endsWith('/Enabled') ? enabled
+        : url.endsWith('/Initiate') ? { Secret: 'secret', Code: '123456' }
+        : url.includes('/Connect?') ? { Authenticated: ++polls > 1 }
+        : url.endsWith('/AuthenticateWithQuickConnect') ? { AccessToken: 'qc-token', User: { Id: 'qc-user', Name: 'Admin' } }
+        : {},
+    }),
+  });
+  app.run(`$('server').value = ' http://jf/ '; startPolling = loadLibrary = buildAtmosCatalog = startMirror = loadLink = () => {};`);
+  app.tick = async ms => {
+    const timer = [...timers].find(([, value]) => value.ms === ms);
+    if (!timer) return false;
+    timers.delete(timer[0]);
+    await timer[1].fn();
+    return true;
+  };
+  app.timers = timers;
+  return app;
+}
+
+test('Quick Connect requires a server', async () => {
+  const app = quickConnectApp();
+  app.run(`$('server').value = ''`);
+  await app.run('startQuickConnect()');
+  assert.equal(app.calls.length, 0);
+  assert.match(app.run(`$('loginError').textContent`), /server is required/);
+});
+
+test('Quick Connect reports a disabled server', async () => {
+  const app = quickConnectApp({ enabled: false });
+  await app.run('startQuickConnect()');
+  assert.equal(app.run(`$('loginError').textContent`), 'Quick Connect is off on this server');
+  assert.equal(app.calls.length, 1);
+  assert.equal(app.timers.size, 0);
+});
+
+test('Quick Connect polls sequentially then uses the shared bridge login', async () => {
+  const app = quickConnectApp();
+  await app.run('startQuickConnect()');
+  assert.equal(app.run(`$('quickConnectCode').textContent`), '123456');
+  await app.tick(3000);
+  assert.equal(app.calls.length, 3);
+  await app.tick(3000);
+  assert.deepEqual(app.calls.map(c => [c.method, c.url]), [
+    ['GET', 'http://jf/QuickConnect/Enabled'], ['POST', 'http://jf/QuickConnect/Initiate'],
+    ['GET', 'http://jf/QuickConnect/Connect?secret=secret'], ['GET', 'http://jf/QuickConnect/Connect?secret=secret'],
+    ['POST', 'http://jf/Users/AuthenticateWithQuickConnect'], ['POST', 'http://bridge/api/session/login'],
+  ]);
+  assert.deepEqual(JSON.parse(app.calls[4].body), { Secret: 'secret' });
+  assert.deepEqual(JSON.parse(app.calls[5].body), { server: 'http://jf', token: 'qc-token' });
+  assert.equal(app.run('state.userId'), 'qc-user');
+  assert.equal(app.timers.size, 0);
+});
+
+test('cancel stops Quick Connect polling', async () => {
+  const app = quickConnectApp();
+  await app.run('startQuickConnect()');
+  app.run('cancelQuickConnect()');
+  assert.equal(await app.tick(3000), false);
+  assert.equal(app.calls.length, 2);
+  assert.equal(app.timers.size, 0);
+});
+
+for (const status of [401, 404]) {
+  test(`Quick Connect expires on Connect ${status}`, async () => {
+    const app = quickConnectApp({ status });
+    await app.run('startQuickConnect()');
+    await app.tick(3000);
+    assert.match(app.run(`$('loginError').textContent`), /expired/);
+    assert.equal(app.timers.size, 0);
+  });
+}
+
+test('Quick Connect expires after five minutes', async () => {
+  const app = quickConnectApp();
+  await app.run('startQuickConnect()');
+  await app.tick(300000);
+  assert.match(app.run(`$('loginError').textContent`), /expired/);
+  assert.equal(await app.tick(3000), false);
+});
 
 test('transport for the linked TV goes over the mirror link', async () => {
   const app = loadApp();
