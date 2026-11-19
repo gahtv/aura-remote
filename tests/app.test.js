@@ -624,16 +624,15 @@ test('artist details use a backdrop if no banner is tagged and clear art when sw
 });
 
 test('a slow artist request does not replace the album opened afterward', async () => {
-  let finishArtist;
-  const artistResponse = new Promise(resolve => { finishArtist = resolve; });
-  const ok = body => ({ ok: true, status: 200, json: async () => body });
-  const app = loadApp({
-    fetch: async url => url.endsWith('/Items/slow') ? artistResponse
-      : url.endsWith('/Items/record') ? ok({ Id: 'record', Name: 'Record' }) : ok({ Items: [] }),
-  });
+  const artistResponse = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/Items/slow') ? artistResponse.promise : null);
+  app.respondWith('/Items/record', { Id: 'record', Name: 'Record' });
   const pendingArtist = app.run(`openArtist('slow', true)`);
   await app.run(`openAlbum('record', true)`);
-  finishArtist(ok({ Id: 'slow', Name: 'Slow Artist', ImageTags: { Banner: 'banner' } }));
+  artistResponse.resolve({
+    ok: true,
+    json: async () => ({ Id: 'slow', Name: 'Slow Artist', ImageTags: { Banner: 'banner' } }),
+  });
   await pendingArtist;
   assert.equal(app.run(`$('sheetTitle').textContent`), 'Record');
   assert.equal(app.run(`$('sheetBanner').src`), undefined);
