@@ -22,9 +22,17 @@ function element() {
   };
 }
 
-function loadApp() {
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function loadApp(intercept = () => null) {
   const calls = [];
   const elements = new Map();
+  const storage = new Map();
+  const timeouts = [];
   let controlFails = false;
   let pairedFails = false;
   const bodies = {};
@@ -42,9 +50,18 @@ function loadApp() {
   };
   const sandbox = {
     console,
-    fetch: async (url, opts = {}) => { calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body }); return respond(String(url)); },
-    setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    fetch: async (url, opts = {}) => {
+      const call = { url: String(url), method: opts.method || 'GET', body: opts.body };
+      calls.push(call);
+      return intercept(call) ?? respond(call.url);
+    },
+    setTimeout: (fn, delay) => timeouts.push({ fn, delay }),
+    clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+    localStorage: {
+      getItem: key => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: key => storage.delete(key),
+    },
     location: { origin: 'http://bridge' },
     navigator: { platform: 'test' },
     confirm: () => true,
@@ -76,7 +93,7 @@ function loadApp() {
   `);
   calls.length = 0;
   return {
-    calls, run,
+    calls, run, timeouts,
     failControl: () => { controlFails = true; },
     failPaired: on => { pairedFails = on; },
     respondWith: (urlPart, body) => { bodies[urlPart] = body; },
@@ -85,6 +102,64 @@ function loadApp() {
     jellyfinCalls: () => calls.filter(c => c.url.startsWith('http://jf/')),
   };
 }
+
+test('an auto-launch 401 arriving after sign-out cannot reopen the bridge session', async () => {
+  const launch = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/api/launch') ? launch.promise : null);
+  assert.equal(app.run('state.autoLaunch'), true);
+  const pendingLaunch = app.run('launchAura()');
+
+  await app.run('logout()');
+  launch.resolve({ ok: false, status: 401, text: async () => 'bridge login required' });
+  await pendingLaunch;
+
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname), ['/api/launch', '/api/session/logout']);
+  assert.equal(app.run('state.bridgeReady'), false);
+});
+
+test('sign-out revokes the cookie from an already pending bridge login', async () => {
+  const login = deferred();
+  let authenticated = false;
+  const app = loadApp(({ url }) => {
+    if (url.endsWith('/api/session/login')) {
+      return login.promise.then(() => {
+        authenticated = true;
+        return { ok: true, status: 200 };
+      });
+    }
+    if (url.endsWith('/api/session/logout')) authenticated = false;
+    if (url.endsWith('/api/launch')) return { ok: false, status: 401 };
+  });
+  app.run("store.set('auth', { token: state.token })");
+  const pendingLaunch = app.run('launchAura()');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.calls.at(-1).url, 'http://bridge/api/session/login');
+
+  const signingOut = app.run('logout()');
+  assert.equal(app.run('state.token'), '');
+  assert.equal(app.run("store.get('auth')"), null);
+  login.resolve();
+  await Promise.all([signingOut, pendingLaunch]);
+
+  assert.equal(authenticated, false);
+  assert.deepEqual(app.calls.map(c => new URL(c.url).pathname),
+    ['/api/launch', '/api/session/login', '/api/session/logout']);
+});
+
+test('the delayed launch poll and visibility polling stay idle after sign-out', async () => {
+  const app = loadApp();
+  await app.run('launchAura()');
+  const retry = app.timeouts.find(timer => timer.delay === 3000);
+  assert.ok(retry);
+  await app.run('logout()');
+  app.calls.length = 0;
+
+  await retry.fn();
+  await app.run('tick()');
+  await app.run('pollMirror()');
+  assert.deepEqual(app.calls, []);
+  assert.equal(app.run("state.autoLaunch && $('autoChk').checked"), true);
+});
 
 test('transport for the linked TV goes over the mirror link', async () => {
   const app = loadApp();
