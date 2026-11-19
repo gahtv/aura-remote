@@ -8,10 +8,16 @@ No app store, no keypad pairing codes, no ADB for everyday use. One browser tab.
 
 ## Status
 
-Version **0.2.0**, pre-release, built for one household on a trusted LAN. Works with Aura
+Version **0.3.0**, pre-release, built for one household on a trusted LAN. Works with Aura
 **v0.2.0-alpha.3 or later** (the first release with the mirror link and on-TV pairing); the latest is
 v0.5.0-alpha.1. What is next for both apps is in Aura's [roadmap](https://github.com/gahtv/Aura/blob/main/docs/ROADMAP.md):
 retiring ADB and replacing polling with live state.
+
+0.3.0 follows what landed on Aura `main` after v0.5.0-alpha.1: Jellyfin bios on album and artist
+pages, word-by-word (karaoke) lyrics from enhanced LRC, Jellyfin word cues or TTML with duet voices,
+and Jellyfin play history. These come straight from Jellyfin, so they work with any Aura version.
+Aura's new Now Playing D-pad focus (DOWN from Play/Pause to Shuffle, DOWN from Shuffle or Repeat to
+the "up next" peek) needs nothing from the Remote: its D-pad sends the same keys as the TV remote.
 
 ---
 
@@ -19,11 +25,12 @@ retiring ADB and replacing polling with live state.
 
 | Feature | How |
 |---|---|
-| **Library** | Albums / artists / tracks with search, artist pages (albums + top tracks), album pages with "Play album". |
+| **Library** | Albums / artists / tracks with search, artist pages (albums + top tracks), album pages with "Play album". Album and artist pages show the Jellyfin bio (tap to expand). |
+| **Recent** | A Library tab with Jellyfin's play history, newest first — the same history as Aura's "Recently played" shelf. Opening it while mirroring takes the TV to Home, where that shelf lives. |
 | **ATMOS badges** | Anything whose audio stream is `eac3` with a `JOC` or `Dolby Atmos` profile — the same rule Aura uses. Cached 24 h per server+user. |
 | **Queue** | The endpoint's live queue and current index; tap a row to jump. |
 | **Transport** | Play/pause/next/previous/seek, repeat and shuffle — semantic commands, not key presses. |
-| **Lyrics** | A labelled **Lyrics** chip in Now Playing that fetches synced lyrics and follows the playhead. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
+| **Lyrics** | A labelled **Lyrics** chip in Now Playing that follows the playhead. Reads the same formats Aura does: line-synced LRC, word-timed (enhanced) LRC, Jellyfin word cues and TTML. Word-timed lines fill in word by word; singer markers (`v1:`/`v2:`, TTML agents) put the second voice on the right and group lines in the middle. Unsynced lyrics are listed without a highlight. Independent of mirroring, and it lights up automatically when the TV switches to its lyrics view. |
 | **Mirroring** | Aura publishes the screen it is on; the remote draws its own native version (album, artist, library tab, Now Playing with lyrics). Navigation travels both ways. The toggle lives in the top bar; the Remote and Queue tabs are exempt so you can drive the TV while mirroring, and re-applying a screen the remote is already showing is a no-op, so lists keep their scroll position. |
 | **Cast fallback** | Pick a Cast TV or speaker in the device picker and the bridge plays to it: the first track of what you pick (Cast has no queue here), with play/pause, stop and seek. The picker falls back to Cast on its own when no Aura session is found. |
 | **Device picker** | Every Aura session and Cast target, with emulator sessions down-ranked and labelled. Controls follow the pick: the bridge's `AURA_LINK` TV is driven over the mirror link, any other Aura through Jellyfin's remote control (transport, seek, shuffle, repeat and its Jellyfin queue; no D-pad or mirroring). |
@@ -178,7 +185,10 @@ node --test tests/*.test.js
 - Single-user: any bridge session can control the TV.
 - One linked TV per bridge (`AURA_LINK`), and one paired bridge per TV. Other Aura TVs get Jellyfin remote
   control only: no D-pad, mirroring, or exact queue jumps.
-- Cast plays one track at a time; there is no Cast queue.
+- Cast plays one track at a time; there is no Cast queue, and Cast plays are not reported to Jellyfin, so
+  they do not show up under **Recent**.
+- Word highlights run on a local clock between Jellyfin's progress reports, so they can drift by up to
+  a poll (2 s) after a seek on the TV.
 - Auto-launch is the only ADB-dependent feature; replacing it with the Android TV Remote v2 protocol
   (PIN pairing) is the obvious next step.
 - The queue is a 2 s poll, not a live subscription.
