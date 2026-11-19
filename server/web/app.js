@@ -209,7 +209,7 @@ async function logout() {
   store.del('auth');
   clearInterval(state.timer);
   clearInterval(state.mirrorTimer);
-  clearInterval(state.lyricsTimer);
+  setLyricsVisible(false);
   $('main').classList.add('hidden');
   // A login already on the wire can still set the HttpOnly cookie.
   await bridgeLogin;

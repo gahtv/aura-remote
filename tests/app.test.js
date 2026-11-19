@@ -161,6 +161,14 @@ test('the delayed launch poll and visibility polling stay idle after sign-out', 
   assert.equal(app.run("state.autoLaunch && $('autoChk').checked"), true);
 });
 
+test('sign-out closes lyrics so the next sign-in does not reuse a stopped highlight timer', async () => {
+  const app = loadApp();
+  await app.run('setLyricsVisible(true)');
+  await app.run('logout()');
+  assert.equal(app.run("!state.lyricsOn && $('lyricsBox').classList.contains('hidden')"), true);
+  assert.equal(app.run('state.lyricsTimer'), null);
+});
+
 test('transport for the linked TV goes over the mirror link', async () => {
   const app = loadApp();
   app.select('aura:s1');
