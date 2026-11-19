@@ -446,9 +446,11 @@ test('artist details use a backdrop if no banner is tagged and clear art when sw
 
   await app.run(`openArtist('fb', true)`);
   assert.match(app.run(`$('sheetBanner').src`), /Images\/Backdrop\/0\?tag=wide&/);
+  app.run(`$('detailBody').scrollTop = 100`);
   await app.run(`openArtist('plain', true)`);
   assertExtraArtHidden();
   assert.equal(app.run(`$('sheetTitle').textContent`), 'Without Artwork');
+  assert.equal(app.run(`$('detailBody').scrollTop`), 0);
 
   await app.run(`openArtist('fb', true)`);
   await app.run(`openAlbum('record', true)`);

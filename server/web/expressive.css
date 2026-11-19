@@ -125,7 +125,7 @@ main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 28px 20px calc(1
 .thumb { width: 64px; height: 64px; border-radius: var(--radius-card); }
 .sheet-title { font-size: 22px; line-height: 1.2; letter-spacing: -.025em; white-space: normal; overflow-wrap: anywhere; }
 .sheet-logo { display: block; max-width: min(100%, 220px); max-height: 42px; object-fit: contain; object-position: left center; margin-bottom: 6px; }
-.sheet-banner { width: 100%; max-height: min(160px, 22dvh); object-fit: contain; border-radius: var(--radius-card); margin-bottom: 16px; flex: 0 0 auto; }
+.sheet-banner { display: block; width: 100%; max-height: min(160px, 22dvh); object-fit: contain; border-radius: var(--radius-card); margin-bottom: 16px; }
 .x { align-items: center; justify-content: center; background: var(--card-hi); border-radius: 50%; width: 44px; height: 44px; flex: 0 0 auto; padding: 0; }
 .x .ic { width: 22px; height: 22px; }
 .sheet-actions { flex-wrap: wrap; padding-bottom: 16px; }

@@ -936,6 +936,11 @@ function closeSheet(id) {
   if (id === 'detailSheet') state.detailRequest = null;
 }
 
+function openDetailSheet() {
+  openSheet('detailSheet');
+  $('detailBody').scrollTop = 0;
+}
+
 function setSheetImage(img, src, fallback = '') {
   img.onerror = src ? () => setSheetImage(img, fallback) : null;
   if (src) img.src = src;
@@ -983,7 +988,7 @@ async function openAlbum(albumId, fromMirror = false) {
       ${isAtmosTrack(t) ? '<span class="atmos">ATMOS</span>' : ''}
     </div>`).join('');
 
-  openSheet('detailSheet');
+  openDetailSheet();
 }
 
 async function openArtist(artistId, fromMirror = false) {
@@ -1018,7 +1023,7 @@ async function openArtist(artistId, fromMirror = false) {
         <div class="n"><div>${escapeHtml(t.Name)}</div><div class="muted small">${escapeHtml(t.Album || '')}</div></div>
       </div>`).join('')}`;
 
-  openSheet('detailSheet');
+  openDetailSheet();
 }
 
 /* ---------------- device sheet ---------------- */
