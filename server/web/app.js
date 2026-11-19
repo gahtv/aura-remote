@@ -75,8 +75,20 @@ const state = {
  * Aura pairing token never leaves the bridge.
  */
 
+let authEpoch = 0;
+let bridgeLogin = null;
+
 async function ensureBridgeSession(force = false) {
+  if (!state.token) return false;
   if (state.bridgeReady && !force) return true;
+  if (!bridgeLogin) {
+    bridgeLogin = loginBridgeSession().finally(() => { bridgeLogin = null; });
+  }
+  return bridgeLogin;
+}
+
+async function loginBridgeSession() {
+  const epoch = authEpoch;
   try {
     const res = await fetch(`${state.bridge}/api/session/login`, {
       method: 'POST',
@@ -84,10 +96,12 @@ async function ensureBridgeSession(force = false) {
       body: JSON.stringify({ server: state.server, token: state.token }),
     });
     if (!res.ok) throw new Error((await res.text()).slice(0, 140));
+    if (epoch !== authEpoch) return false;
     state.bridgeReady = true;
     state.bridgeError = '';
     return true;
   } catch (e) {
+    if (epoch !== authEpoch) return false;
     state.bridgeReady = false;
     state.bridgeError = e.message || 'bridge refused the session';
     return false;
@@ -95,9 +109,11 @@ async function ensureBridgeSession(force = false) {
 }
 
 async function bridgeFetch(path, opts = {}) {
+  if (!state.token) throw new Error('signed out');
+  const epoch = authEpoch;
   let res = await fetch(state.bridge + path, opts);
-  if (res.status === 401) {
-    if (await ensureBridgeSession(true)) {
+  if (res.status === 401 && epoch === authEpoch) {
+    if (await ensureBridgeSession(true) && epoch === authEpoch) {
       res = await fetch(state.bridge + path, opts);
     }
   }
@@ -170,6 +186,7 @@ function completeLogin(server, data) {
   state.token = data.AccessToken;
   state.userId = data.User.Id;
   state.userName = data.User.Name;
+  store.del('bridgeLogoutPending');
   store.set('lastServer', server);
   store.set('auth', { server, token: state.token, userId: state.userId, userName: state.userName });
   $('pass').value = '';
@@ -271,17 +288,32 @@ async function login() {
 async function logout() {
   passwordAttempt = null;
   cancelQuickConnect();
+  if (!state.token) return;
+  authEpoch++;
+  state.server = state.token = state.userId = state.userName = '';
+  state.bridgeReady = false;
+  state.bridgeError = '';
+  state.launching = false;
+  state.launchError = '';
+  store.set('bridgeLogoutPending', true);
   clearInterval(state.timer);
   clearInterval(state.mirrorTimer);
+  setLyricsVisible(false);
+  $('main').classList.add('hidden');
+  await finishBridgeLogout();
+}
+
+async function finishBridgeLogout() {
+  store.del('auth');
+  $('login').classList.add('hidden');
+  // A login already on the wire can still set the HttpOnly cookie.
+  await bridgeLogin;
   // Drop the server-side session too: the cookie is HttpOnly and lives 30 days,
   // so clearing local storage alone leaves a live bridge session behind.
   try {
-    await fetch(`${state.bridge}/api/session/logout`, { method: 'POST' });
-  } catch { /* bridge unreachable — the cookie expires on its own */ }
-  state.bridgeReady = false;
-  state.bridgeError = '';
-  store.del('auth');
-  $('main').classList.add('hidden');
+    const res = await fetch(`${state.bridge}/api/session/logout`, { method: 'POST', keepalive: true });
+    if (res.ok) store.del('bridgeLogoutPending');
+  } catch { /* retry on the next visit if the bridge is unreachable */ }
   $('login').classList.remove('hidden');
 }
 
@@ -290,7 +322,7 @@ function enterApp() {
   cancelQuickConnect();
   $('login').classList.add('hidden');
   $('main').classList.remove('hidden');
-  ensureBridgeSession().then(loadLink);
+  ensureBridgeSession().then(ready => { if (ready) loadLink(); });
   startPolling();
   loadLibrary();
   buildAtmosCatalog();
@@ -602,15 +634,18 @@ function msIcon(name, cls = 'ic') {
 /* ---------------- polling ---------------- */
 
 async function tick() {
-  if (document.hidden) return;
+  if (document.hidden || !state.token) return;
+  const epoch = authEpoch;
   try {
     await refreshTargets();
+    if (epoch !== authEpoch) return;
     await refreshNowPlaying();
+    if (epoch !== authEpoch) return;
     anchorClock();
     if (!state.sessions.length && !state.np && !state.launching) launchAura(false);
     renderNowPlaying();
   } catch (e) {
-    if (e.message === 'unauthorized') logout();
+    if (epoch === authEpoch && e.message === 'unauthorized') logout();
   }
 }
 
@@ -623,10 +658,11 @@ function startPolling() {
 /* ---------------- launching ---------------- */
 
 async function launchAura(manual = false) {
-  if (state.launching) return;
+  if (!state.token || state.launching) return;
   if (!manual && !state.autoLaunch) return;
   if (!manual && Date.now() - state.lastLaunch < 45000) return;
 
+  const epoch = authEpoch;
   state.launching = true;
   state.lastLaunch = Date.now();
   state.launchError = '';
@@ -634,14 +670,17 @@ async function launchAura(manual = false) {
 
   try {
     const res = await bridgeFetch(`/api/launch`, { method: 'POST' });
+    if (epoch !== authEpoch) return;
     if (!res.ok) throw new Error((await res.text()).slice(0, 140));
     toast('Aura starting…', 2500);
-    setTimeout(tick, 3000);
+    setTimeout(() => { if (epoch === authEpoch) tick(); }, 3000);
   } catch (e) {
-    state.launchError = e.message || 'launch failed';
+    if (epoch === authEpoch) state.launchError = e.message || 'launch failed';
   } finally {
-    state.launching = false;
-    renderNowPlaying();
+    if (epoch === authEpoch) {
+      state.launching = false;
+      renderNowPlaying();
+    }
   }
 }
 
@@ -1072,7 +1111,7 @@ async function sendKey(key) {
 }
 
 async function pollMirror() {
-  if (document.hidden) return;
+  if (document.hidden || !state.token) return;
   try {
     const res = await bridgeFetch(`/api/aura/state`);
     if (res.status === 401) { state.unpaired = true; renderPair(); return; }
@@ -1454,7 +1493,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) tick
 
 (function boot() {
   const saved = store.get('auth');
-  if (saved) {
+  if (store.get('bridgeLogoutPending')) {
+    finishBridgeLogout();
+  } else if (saved) {
     state.server = saved.server;
     state.token = saved.token;
     state.userId = saved.userId;
