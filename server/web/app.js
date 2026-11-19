@@ -1152,7 +1152,8 @@ function renderLyrics() {
   const pos = livePosition();
   const active = AuraLyrics.activeIndex(lines, pos);
   const spans = active >= 0 ? AuraLyrics.karaokeSpans(lines[active], pos) : [];
-  const sig = `${state.lyricsFor}:${lines.length}:${active}:${spans.map(sp => sp.sung ? 1 : 0).join('')}`;
+  const sung = active >= 0 ? (lines[active].words || []).filter(w => pos >= w.start).length : 0;
+  const sig = `${state.lyricsFor}:${lines.length}:${active}:${sung}`;
   if (sig === state.lyricsSig) return;
   state.lyricsSig = sig;
 
