@@ -25,7 +25,7 @@ the "up next" peek) needs nothing from the Remote: its D-pad sends the same keys
 
 | Feature | How |
 |---|---|
-| **Library** | Albums / artists / tracks with search, artist pages (albums + top tracks), album pages with "Play album". Album and artist pages show the Jellyfin bio (tap to expand). |
+| **Library** | Albums / artists / tracks with search, artist pages (albums + top tracks), album pages with "Play album". Album and artist pages show the Jellyfin bio (tap to expand). Artist pages also show Jellyfin logos and banners when available, using the first backdrop if there is no usable banner. |
 | **Recent** | A Library tab with Jellyfin's play history, newest first — the same history as Aura's "Recently played" shelf. Opening it while mirroring takes the TV to Home, where that shelf lives. |
 | **ATMOS badges** | Anything whose audio stream is `eac3` with a `JOC` or `Dolby Atmos` profile — the same rule Aura uses. Cached 24 h per server+user. |
 | **Queue** | The endpoint's live queue and current index; tap a row to jump. |
