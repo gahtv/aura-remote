@@ -17,6 +17,7 @@ function element() {
       contains: c => classes.has(c),
     },
     addEventListener() {}, setAttribute() {}, scrollIntoView() {},
+    removeAttribute(name) { delete this[name]; },
     querySelector: () => null, querySelectorAll: () => [],
     children: [], dataset: {}, style: {}, textContent: '', innerHTML: '', value: '',
   };
@@ -567,4 +568,72 @@ test('album and artist sheets show the Jellyfin bio as plain text', async () => 
   app.respondWith('/Items/ar1', { Name: 'Artist' });
   await app.run(`openArtist('ar1', true)`);
   assert.equal(app.run(`$('sheetBio').classList.contains('hidden')`), true);
+});
+
+test('artist details show tagged Jellyfin logo and banner with a readable name and primary art', async () => {
+  const app = loadApp();
+  app.respondWith('/Items/fb', {
+    Id: 'fb', Name: 'The Example Band',
+    ImageTags: { Primary: 'portrait', Logo: 'logo&v=2', Banner: 'banner' },
+    BackdropImageTags: ['wide1', 'wide2'],
+  });
+  await app.run(`openArtist('fb', true)`);
+  assert.equal(app.run(`$('sheetTitle').textContent`), 'The Example Band');
+  assert.equal(app.run(`$('sheetArt').src`), 'http://jf/Items/fb/Images/Primary?tag=portrait&maxHeight=200&api_key=t');
+  assert.equal(app.run(`$('sheetLogo').src`), 'http://jf/Items/fb/Images/Logo?tag=logo%26v%3D2&maxHeight=96&api_key=t');
+  assert.equal(app.run(`$('sheetBanner').src`), 'http://jf/Items/fb/Images/Banner?tag=banner&maxWidth=1440&api_key=t');
+  assert.equal(app.run(`$('sheetLogo').classList.contains('hidden') || $('sheetBanner').classList.contains('hidden')`), false);
+
+  app.run(`$('sheetLogo').onerror(); $('sheetBanner').onerror();`);
+  assert.equal(app.run(`$('sheetLogo').classList.contains('hidden')`), true);
+  assert.equal(app.run(`$('sheetTitle').textContent`), 'The Example Band');
+  assert.equal(app.run(`$('sheetBanner').src`), 'http://jf/Items/fb/Images/Backdrop/0?tag=wide1&maxWidth=1440&api_key=t');
+  app.run(`$('sheetBanner').onerror()`);
+  assert.equal(app.run(`$('sheetBanner').classList.contains('hidden')`), true);
+  assert.equal(app.run(`$('sheetBanner').src`), undefined);
+});
+
+test('artist details use a backdrop if no banner is tagged and clear art when switching details', async () => {
+  const app = loadApp();
+  app.respondWith('/Items/fb', {
+    Id: 'fb', Name: 'With Artwork', ImageTags: { Logo: 'logo' }, BackdropImageTags: ['wide'],
+  });
+  app.respondWith('/Items/plain', { Id: 'plain', Name: 'Without Artwork' });
+  app.respondWith('/Items/record', {
+    Id: 'record', Name: 'Record', ImageTags: { Primary: 'cover', Logo: 'unused', Banner: 'unused' },
+  });
+  const assertExtraArtHidden = () => {
+    for (const id of ['sheetLogo', 'sheetBanner']) {
+      assert.equal(app.run(`$('${id}').classList.contains('hidden')`), true);
+      assert.equal(app.run(`$('${id}').src`), undefined);
+    }
+  };
+
+  await app.run(`openArtist('fb', true)`);
+  assert.match(app.run(`$('sheetBanner').src`), /Images\/Backdrop\/0\?tag=wide&/);
+  app.run(`$('detailBody').scrollTop = 100`);
+  await app.run(`openArtist('plain', true)`);
+  assertExtraArtHidden();
+  assert.equal(app.run(`$('sheetTitle').textContent`), 'Without Artwork');
+  assert.equal(app.run(`$('detailBody').scrollTop`), 0);
+
+  await app.run(`openArtist('fb', true)`);
+  await app.run(`openAlbum('record', true)`);
+  assertExtraArtHidden();
+  assert.match(app.run(`$('sheetArt').src`), /Items\/record\/Images\/Primary\?tag=cover&/);
+});
+
+test('a slow artist request does not replace the album opened afterward', async () => {
+  const artistResponse = deferred();
+  const app = loadApp(({ url }) => url.endsWith('/Items/slow') ? artistResponse.promise : null);
+  app.respondWith('/Items/record', { Id: 'record', Name: 'Record' });
+  const pendingArtist = app.run(`openArtist('slow', true)`);
+  await app.run(`openAlbum('record', true)`);
+  artistResponse.resolve({
+    ok: true,
+    json: async () => ({ Id: 'slow', Name: 'Slow Artist', ImageTags: { Banner: 'banner' } }),
+  });
+  await pendingArtist;
+  assert.equal(app.run(`$('sheetTitle').textContent`), 'Record');
+  assert.equal(app.run(`$('sheetBanner').src`), undefined);
 });
